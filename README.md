@@ -141,8 +141,8 @@ Create a Function URL with:
 - Auth type: `NONE`
 - Allowed methods: `POST`, `OPTIONS`
 - Allowed origins:
-  - `http://127.0.0.1:3000`
-  - `http://localhost:3000`
+  - `http://127.0.0.1:5174`
+  - `http://localhost:5174`
   - your production portal origin
 - Allowed headers:
   - `content-type`
@@ -153,6 +153,11 @@ Create a Function URL with:
 Configure CORS on the Function URL only. Do not also add
 `Access-Control-Allow-Origin` from the Lambda code, because duplicate origin
 headers make browsers reject the response.
+
+The development server proxies Lambda uploads through `/lambda-upload`, so a
+local browser request does not require Function URL CORS. Production browser
+uploads still require the Function URL CORS configuration above. Add every
+production portal origin that serves this app; origins must match exactly.
 
 Use the generated Function URL as `VITE_LAMBDA_UPLOAD_URL`.
 

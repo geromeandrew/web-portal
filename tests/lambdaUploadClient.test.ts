@@ -1,4 +1,10 @@
-import { uploadFileThroughLambda, uploadFileWithProgress, validateLambdaFile, validateLocalFiles } from "../src/lib/uploadClient";
+import {
+  getLambdaUploadBaseUrl,
+  uploadFileThroughLambda,
+  uploadFileWithProgress,
+  validateLambdaFile,
+  validateLocalFiles,
+} from "../src/lib/uploadClient";
 
 describe("lambda upload client validation", () => {
   it("accepts a supported small file", () => {
@@ -77,7 +83,7 @@ describe("lambda upload client validation", () => {
     const response = await uploadFileThroughLambda({ id: "lambda-id", file, status: "queued", progress: 0 }, vi.fn());
 
     expect(response.upload.objectKey).toBe("lambda/hello.txt");
-    expect(MockXhr.last.open).toHaveBeenCalledWith("POST", "https://66kwjqserfubt3a2c6voixso5a0yrtpk.lambda-url.ap-southeast-1.on.aws");
+    expect(MockXhr.last.open).toHaveBeenCalledWith("POST", getLambdaUploadBaseUrl());
     expect(MockXhr.last.setRequestHeader).toHaveBeenCalledWith("X-File-Name", "hello%20world.txt");
     expect(MockXhr.last.setRequestHeader).toHaveBeenCalledWith("X-File-Size", "5");
     expect(MockXhr.last.send).toHaveBeenCalledWith(file);
@@ -119,10 +125,7 @@ describe("lambda upload client validation", () => {
       ),
     ).rejects.toThrow("unexpected response");
 
-    expect(MockXhr.last.open).toHaveBeenCalledWith(
-      "POST",
-      "https://66kwjqserfubt3a2c6voixso5a0yrtpk.lambda-url.ap-southeast-1.on.aws",
-    );
+    expect(MockXhr.last.open).toHaveBeenCalledWith("POST", getLambdaUploadBaseUrl());
 
     vi.stubGlobal("XMLHttpRequest", originalXhr);
   });

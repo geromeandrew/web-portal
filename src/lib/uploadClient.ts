@@ -29,7 +29,10 @@ export function getSignerBaseUrl() {
 }
 
 export function getLambdaUploadBaseUrl() {
-  return import.meta.env.VITE_LAMBDA_UPLOAD_URL?.replace(/\/$/, "") ?? "";
+  const lambdaUploadUrl = import.meta.env.VITE_LAMBDA_UPLOAD_URL?.replace(/\/$/, "") ?? "";
+
+  // Vite proxies this route in development, avoiding a browser CORS preflight.
+  return import.meta.env.DEV && lambdaUploadUrl ? "/lambda-upload" : lambdaUploadUrl;
 }
 
 function isLambdaUploadResponse(value: unknown): value is LambdaUploadResponse {
