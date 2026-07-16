@@ -11,16 +11,12 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 3000,
       proxy: {
-        "/api": {
-          target: "http://127.0.0.1:8787",
-          changeOrigin: true,
-        },
         ...(lambdaUploadUrl
           ? {
               "/lambda-upload": {
                 target: lambdaUploadUrl,
                 changeOrigin: true,
-                rewrite: () => "/",
+                rewrite: (path) => path.replace(/^\/lambda-upload/, "") || "/",
               },
             }
           : {}),

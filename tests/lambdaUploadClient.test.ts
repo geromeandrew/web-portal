@@ -1,12 +1,49 @@
 import {
+  getDirectPresignUrl,
   getLambdaUploadBaseUrl,
+  requestPresignedUploads,
   uploadFileThroughLambda,
   uploadFileWithProgress,
   validateLambdaFile,
   validateLocalFiles,
+  validateWorkflowFile,
 } from "../src/lib/uploadClient";
 
 describe("lambda upload client validation", () => {
+  it("builds the direct S3 presign endpoint from the configured Lambda URL", () => {
+    vi.stubEnv("VITE_DIRECT_UPLOAD_URL", "https://direct-upload.example/");
+
+    expect(getDirectPresignUrl()).toBe("https://direct-upload.example/presign");
+
+    vi.unstubAllEnvs();
+  });
+
+  it("requests Direct S3 URLs from the configured Lambda presign endpoint", async () => {
+    vi.stubEnv("VITE_DIRECT_UPLOAD_URL", "https://direct-upload.example/");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ uploads: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestPresignedUploads([
+      {
+        id: "direct-id",
+        file: new File(["hello"], "hello.txt", { type: "text/plain" }),
+        status: "queued",
+        progress: 0,
+      },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://direct-upload.example/presign",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
   it("accepts a supported small file", () => {
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
 
@@ -31,6 +68,16 @@ describe("lambda upload client validation", () => {
     const { rejected } = validateLocalFiles([new File([], "empty.pdf", { type: "application/pdf" })]);
 
     expect(rejected[0]?.reason).toBe("Empty files are not allowed.");
+  });
+
+  it("limits spreadsheet-only workflows to XLSX files", () => {
+    const xlsx = new File(["x"], "source.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const pdf = new File(["x"], "source.pdf", { type: "application/pdf" });
+
+    expect(validateWorkflowFile(xlsx, ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])).toBeNull();
+    expect(validateWorkflowFile(pdf, ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])).toContain("Excel");
   });
 
   it("sends a direct upload as a PUT with presigned headers", async () => {

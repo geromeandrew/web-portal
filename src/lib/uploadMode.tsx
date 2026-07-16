@@ -8,11 +8,13 @@ type UploadModeContextValue = {
 };
 
 const UploadModeContext = createContext<UploadModeContextValue | null>(null);
+const configuredMode: UploadMode = import.meta.env.VITE_UPLOAD_TRANSPORT === "lambda" ? "lambda" : "direct";
 const STORAGE_KEY = "dt-plus-upload-mode";
 
 export function UploadModeProvider({ children }: { children: ReactNode }) {
   const [uploadMode, setUploadMode] = useState<UploadMode>(() => {
-    return window.localStorage.getItem(STORAGE_KEY) === "direct" ? "direct" : "lambda";
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    return stored === "lambda" || stored === "direct" ? stored : configuredMode;
   });
 
   useEffect(() => {

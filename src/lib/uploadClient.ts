@@ -5,7 +5,7 @@ import type {
   UploadCandidate,
 } from "../../shared/upload";
 import { sanitizeFileName } from "./utils";
-import type { UploadQueueItem } from "./uploadState";
+import { applyPresignResponse, type UploadQueueItem } from "./uploadState";
 
 const DEFAULT_MAX_FILE_SIZE_BYTES = Number(import.meta.env.VITE_MAX_FILE_SIZE_BYTES ?? 26_214_400);
 const DEFAULT_LAMBDA_MAX_FILE_SIZE_BYTES = Number(
@@ -24,15 +24,17 @@ const DEFAULT_ALLOWED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
 
-export function getSignerBaseUrl() {
-  return import.meta.env.VITE_UPLOAD_SIGNER_URL?.replace(/\/$/, "") ?? "/api";
-}
-
 export function getLambdaUploadBaseUrl() {
   const lambdaUploadUrl = import.meta.env.VITE_LAMBDA_UPLOAD_URL?.replace(/\/$/, "") ?? "";
 
   // Vite proxies this route in development, avoiding a browser CORS preflight.
   return import.meta.env.DEV && lambdaUploadUrl ? "/lambda-upload" : lambdaUploadUrl;
+}
+
+export function getDirectPresignUrl() {
+  const directUploadUrl = import.meta.env.VITE_DIRECT_UPLOAD_URL?.replace(/\/$/, "");
+  const baseUrl = directUploadUrl || getLambdaUploadBaseUrl();
+  return baseUrl ? `${baseUrl}/presign` : "";
 }
 
 function isLambdaUploadResponse(value: unknown): value is LambdaUploadResponse {
@@ -94,6 +96,15 @@ export function validateLambdaFile(file: File) {
   return null;
 }
 
+export function validateWorkflowFile(file: File, allowedTypes?: readonly string[]) {
+  const allowedTypeError = allowedTypes && !allowedTypes.includes(file.type)
+    ? "This workflow accepts Excel (.xlsx) files only."
+    : null;
+
+  if (allowedTypeError) return allowedTypeError;
+  return null;
+}
+
 export async function requestPresignedUploads(
   items: UploadQueueItem[],
 ): Promise<PresignUploadResponse> {
@@ -105,7 +116,12 @@ export async function requestPresignedUploads(
   }));
 
   const body: PresignUploadRequest = { files };
-  const response = await fetch(`${getSignerBaseUrl()}/uploads/presign`, {
+  const presignUrl = getDirectPresignUrl();
+  if (!presignUrl) {
+    throw new Error("VITE_LAMBDA_UPLOAD_URL is not configured for Direct S3 uploads.");
+  }
+
+  const response = await fetch(presignUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -219,4 +235,34 @@ export async function uploadFileThroughLambda(
     xhr.onerror = () => reject(new Error("Network error during Lambda upload."));
     xhr.send(item.file);
   });
+}
+
+export async function uploadSingleFile(
+  file: File,
+  transport: "lambda" | "direct",
+  onProgress: (progress: number) => void,
+) {
+  const id = crypto.randomUUID();
+  const baseItem: UploadQueueItem = {
+    id,
+    file: new File([file], sanitizeFileName(file.name), { type: file.type }),
+    status: "queued",
+    progress: 0,
+    transport,
+  };
+
+  if (transport === "lambda") {
+    const rejection = validateLambdaFile(baseItem.file);
+    if (rejection) throw new Error(rejection);
+    const response = await uploadFileThroughLambda(baseItem, onProgress);
+    return { ...baseItem, status: "success" as const, progress: 100, objectKey: response.upload.objectKey };
+  }
+
+  const { accepted, rejected } = validateLocalFiles([baseItem.file]);
+  if (rejected.length || !accepted.length) throw new Error(rejected[0]?.reason ?? "File could not be uploaded.");
+  const response = await requestPresignedUploads([baseItem]);
+  const [ready] = applyPresignResponse([baseItem], response);
+  if (ready.status === "rejected") throw new Error(ready.message ?? "File was rejected.");
+  await uploadFileWithProgress(ready, onProgress);
+  return { ...ready, status: "success" as const, progress: 100 };
 }

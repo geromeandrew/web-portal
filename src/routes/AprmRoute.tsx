@@ -1,12 +1,19 @@
-import { CheckCircle2, FileCog, Mic2, Play, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, FileCog, Mic2 } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import PageHeader from "../components/PageHeader";
 import WorkflowUpload from "../components/WorkflowUpload";
 
-type Area = "content" | "voice";
-const areas = [{ id: "content" as const, title: "Content", subtitle: "APRM Content features file upload.", icon: FileCog }, { id: "voice" as const, title: "Voice", subtitle: "APRM Voice features file upload.", icon: Mic2 }];
+const areas = [
+  { id: "content", title: "APRM Content", description: "APRM Content features file upload.", icon: FileCog },
+  { id: "voice", title: "APRM Voice", description: "APRM Voice features file upload.", icon: Mic2 },
+] as const;
 
 export default function AprmRoute() {
-  const [area, setArea] = useState<Area>("content"); const [processed, setProcessed] = useState<Record<Area, boolean>>({ content: false, voice: false });
-  const selected = areas.find((item) => item.id === area)!; const Icon = selected.icon;
-  return <div className="space-y-5"><section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/[0.04]"><p className="text-[13px] font-medium text-[#007AFF]">APRM</p><h2 className="mt-1 text-[21px] font-bold tracking-tight text-[#1C1C1E]">APRM {selected.title}</h2><p className="mt-1 text-[13px] text-[#636366]">{selected.subtitle}</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{areas.map((item) => { const AreaIcon = item.icon; const active = item.id === area; return <button key={item.id} onClick={() => setArea(item.id)} className={`focus-ring flex items-center gap-3 rounded-[12px] p-3 text-left transition ${active ? "bg-[#EAF2FF] ring-1 ring-[#007AFF]/20" : "bg-[#F2F2F7] hover:bg-[#E5E5EA]"}`}><span className={`grid h-10 w-10 place-items-center rounded-[10px] ${active ? "bg-[#007AFF] text-white" : "bg-white text-[#007AFF]"}`}><AreaIcon className="h-5 w-5" /></span><span><span className="block text-[14px] font-semibold text-[#1C1C1E]">APRM {item.title}</span><span className="mt-0.5 block text-[12px] text-[#636366]">{item.subtitle}</span></span></button>; })}</div></section><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"><WorkflowUpload title={`APRM ${selected.title}`} description={selected.subtitle} acceptLabel="Supported source files" /><aside className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/[0.04]"><span className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#EAF2FF] text-[#007AFF]"><Icon className="h-5 w-5" /></span><p className="mt-5 text-[13px] font-semibold text-[#1C1C1E]">APRM {selected.title}</p><p className="mt-1 text-[12px] leading-5 text-[#636366]">{selected.subtitle}</p><button onClick={() => setProcessed((current) => ({ ...current, [area]: true }))} className="focus-ring mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[#007AFF] text-[14px] font-semibold text-white hover:bg-[#006FE6]"><Play className="h-4 w-4" />Start processing</button>{processed[area] ? <div className="mt-4 flex items-center gap-2 rounded-[10px] bg-[#E9F9ED] px-3 py-2.5 text-[12px] font-medium text-[#248A3D]"><CheckCircle2 className="h-4 w-4" />Processing complete</div> : null}<button onClick={() => setProcessed((current) => ({ ...current, [area]: false }))} className="focus-ring mt-4 inline-flex items-center gap-2 text-[12px] font-medium text-[#636366] hover:text-[#007AFF]"><RotateCcw className="h-3.5 w-3.5" />Reset</button></aside></div></div>;
+  const { area } = useParams();
+  const selected = areas.find((item) => item.id === area);
+  if (selected) return <div className="space-y-5"><PageHeader eyebrow="APRM" title={selected.title} description={selected.description}><Link to="/aprm" className="focus-ring inline-flex items-center gap-2 text-[13px] font-semibold text-teal"><ArrowLeft className="h-4 w-4" />Back to APRM</Link></PageHeader><WorkflowUpload title={selected.title} description={selected.description} acceptLabel="Supported business files" /></div>;
+
+  return <div className="space-y-5"><PageHeader eyebrow="APRM" title="APRM workflows" description="Select the Content or Voice workflow to upload the corresponding source files." /><section className="grid gap-5 sm:grid-cols-2">
+    {areas.map((item) => { const Icon = item.icon; return <article key={item.id} className="rounded-2xl bg-white p-7 shadow-lg shadow-slate-200/60 ring-1 ring-slate-100"><span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-teal/15 to-sky-100 text-teal"><Icon className="h-5 w-5" /></span><h1 className="font-heading mt-6 text-[27px] font-bold tracking-tight text-slate-900">{item.title}</h1><p className="mt-2 text-[14px] text-slate-500">{item.description}</p><Link to={`/aprm/${item.id}`} className="focus-ring mt-5 inline-flex rounded-full bg-gradient-to-r from-teal to-sky-500 px-4 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-teal/20 transition hover:-translate-y-0.5">Start processing <span className="ml-1">»</span></Link></article>; })}
+  </section></div>;
 }
