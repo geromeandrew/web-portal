@@ -5,7 +5,6 @@ import DemoTable from "../components/DemoTable";
 import PageHeader from "../components/PageHeader";
 import { allocationHeaders, allocationRows, egLayoutRows, jvHeaders, jvRows, layoutHeaders, prepaidSourceFiles, sgLayoutRows } from "../lib/demoData";
 import { uploadSingleFile, validateWorkflowFile } from "../lib/uploadClient";
-import { useUploadMode } from "../lib/uploadMode";
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 type SlotStatus = "empty" | "uploading" | "success" | "error";
@@ -35,7 +34,6 @@ function reportDownload() {
 
 export default function PrepaidRoute() {
   const { section = "file-upload", region, variant } = useParams();
-  const { uploadMode } = useUploadMode();
   const [allocationOpen, setAllocationOpen] = useState(false);
   const [jvOpen, setJvOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -60,7 +58,7 @@ export default function PrepaidRoute() {
     }
     setSlots((current) => current.map((slot) => slot.expected === expected ? { ...slot, status: "uploading", name: file.name, progress: 3, message: undefined } : slot));
     try {
-      await uploadSingleFile(file, uploadMode, (progress) => setSlots((current) => current.map((slot) => slot.expected === expected ? { ...slot, progress } : slot)));
+      await uploadSingleFile(file, (progress) => setSlots((current) => current.map((slot) => slot.expected === expected ? { ...slot, progress } : slot)));
       setSlots((current) => current.map((slot) => slot.expected === expected ? { ...slot, status: "success", progress: 100, created: new Date().toLocaleString(), size: `${(file.size / 1_000_000).toFixed(2)}` } : slot));
     } catch (error) {
       setSlots((current) => current.map((slot) => slot.expected === expected ? { ...slot, status: "error", progress: 0, message: error instanceof Error ? error.message : "Upload failed." } : slot));

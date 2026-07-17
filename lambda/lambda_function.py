@@ -17,10 +17,7 @@ s3_client = boto3.client("s3")
 
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
 S3_KEY_PREFIX = os.environ.get("S3_KEY_PREFIX", "lambda")
-DIRECT_S3_KEY_PREFIX = os.environ.get("DIRECT_S3_KEY_PREFIX", "uploads")
 MAX_FILE_SIZE_BYTES = int(os.environ.get("MAX_FILE_SIZE_BYTES", "4500000"))
-DIRECT_MAX_FILE_SIZE_BYTES = int(os.environ.get("DIRECT_MAX_FILE_SIZE_BYTES", "26214400"))
-PRESIGN_TTL_SECONDS = int(os.environ.get("PRESIGN_TTL_SECONDS", "900"))
 ALLOWED_MIME_TYPES = {
     value.strip()
     for value in os.environ.get(
@@ -86,20 +83,8 @@ def get_body_bytes(event):
     return body.encode("utf-8")
 
 
-def get_json_body(event):
-    try:
-        raw_body = get_body_bytes(event)
-        return json.loads(raw_body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-        return None
-
-
 def get_http_method(event):
     return event.get("requestContext", {}).get("http", {}).get("method", "").upper()
-
-
-def get_path(event):
-    return event.get("rawPath") or event.get("requestContext", {}).get("http", {}).get("path", "") or "/"
 
 
 def require_bucket():
@@ -110,82 +95,6 @@ def require_bucket():
 
 def create_lambda_object_key(file_name):
     return f"{S3_KEY_PREFIX.strip('/')}/{uuid.uuid4()}-{sanitize_name(file_name)}"
-
-
-def create_direct_object_key(file_name):
-    now = datetime.now(timezone.utc)
-    prefix = DIRECT_S3_KEY_PREFIX.strip("/") or "uploads"
-    return f"{prefix}/{now:%Y/%m/%d}/{uuid.uuid4()}/{uuid.uuid4()}-{sanitize_name(file_name)}"
-
-
-def validate_direct_candidate(candidate):
-    name = candidate.get("name") if isinstance(candidate, dict) else None
-    file_type = candidate.get("type") if isinstance(candidate, dict) else None
-    size = candidate.get("size") if isinstance(candidate, dict) else None
-    if not isinstance(name, str) or not name.strip():
-        return "File name is required."
-    if not isinstance(file_type, str) or file_type not in ALLOWED_MIME_TYPES:
-        return "File type is not allowed for this portal."
-    if not isinstance(size, int) or size <= 0:
-        return "File size must be a positive number."
-    if size > DIRECT_MAX_FILE_SIZE_BYTES:
-        return f"Exceeds {round(DIRECT_MAX_FILE_SIZE_BYTES / 1024 / 1024)} MB limit."
-    return None
-
-
-def handle_presign(event):
-    bucket_error = require_bucket()
-    if bucket_error:
-        return bucket_error
-
-    payload = get_json_body(event)
-    files = payload.get("files") if isinstance(payload, dict) else None
-    if not isinstance(files, list) or not files:
-        return json_response(400, {"error": "At least one file is required."})
-
-    uploads = []
-    rejected = []
-    for candidate in files:
-        reason = validate_direct_candidate(candidate)
-        name = candidate.get("name", "upload.bin") if isinstance(candidate, dict) else "upload.bin"
-        if reason:
-            rejected.append({"name": name, "reason": reason})
-            continue
-
-        object_key = create_direct_object_key(name)
-        try:
-            upload_url = s3_client.generate_presigned_url(
-                "put_object",
-                Params={
-                    "Bucket": BUCKET_NAME,
-                    "Key": object_key,
-                    "ContentType": candidate["type"],
-                },
-                ExpiresIn=PRESIGN_TTL_SECONDS,
-                HttpMethod="PUT",
-            )
-        except (BotoCoreError, ClientError):
-            logger.exception("Could not generate a direct S3 presign URL")
-            return json_response(500, {"error": "Could not create upload URLs."})
-
-        uploads.append(
-            {
-                "id": candidate.get("id") or str(uuid.uuid4()),
-                "objectKey": object_key,
-                "uploadUrl": upload_url,
-                "method": "PUT",
-                "headers": {"Content-Type": candidate["type"]},
-                "expiresAt": datetime.fromtimestamp(
-                    datetime.now(timezone.utc).timestamp() + PRESIGN_TTL_SECONDS,
-                    tz=timezone.utc,
-                ).isoformat().replace("+00:00", "Z"),
-            }
-        )
-
-    response = {"uploads": uploads}
-    if rejected:
-        response["rejected"] = rejected
-    return json_response(200, response)
 
 
 def handle_lambda_upload(event):
@@ -248,11 +157,8 @@ def handle_lambda_upload(event):
 
 def lambda_handler(event, context):
     method = get_http_method(event)
-    path = get_path(event)
     if method == "OPTIONS":
         return empty_response(204)
     if method != "POST":
         return json_response(405, {"error": "Method not allowed."})
-    if path.rstrip("/").endswith("/presign"):
-        return handle_presign(event)
     return handle_lambda_upload(event)

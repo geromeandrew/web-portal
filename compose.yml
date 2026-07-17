@@ -1,0 +1,19 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        VITE_LAMBDA_UPLOAD_URL: ${VITE_LAMBDA_UPLOAD_URL:-https://66kwjqserfubt3a2c6voixso5a0yrtpk.lambda-url.ap-southeast-1.on.aws}
+        VITE_LAMBDA_MAX_FILE_SIZE_BYTES: ${VITE_LAMBDA_MAX_FILE_SIZE_BYTES:-4500000}
+    image: web-portal:local
+    ports:
+      - "3000:8080"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777

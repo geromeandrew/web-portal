@@ -5,7 +5,6 @@ import DemoTable from "../components/DemoTable";
 import PageHeader from "../components/PageHeader";
 import { memoErrors, memoHeaders } from "../lib/demoData";
 import { uploadSingleFile, validateWorkflowFile } from "../lib/uploadClient";
-import { useUploadMode } from "../lib/uploadMode";
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 type MemoFile = { id: string; name: string; status: "uploading" | "success" | "error"; progress: number; created: string; size: string; message?: string };
@@ -21,7 +20,6 @@ function exportErrors() {
 
 export default function MemoRoute() {
   const { section = "file-upload" } = useParams();
-  const { uploadMode } = useUploadMode();
   const [files, setFiles] = useState<MemoFile[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const isErrors = section === "error-page";
@@ -37,7 +35,7 @@ export default function MemoRoute() {
       const id = crypto.randomUUID();
       setFiles((current) => [{ id, name: file.name, status: "uploading", progress: 3, created: new Date().toLocaleString(), size: `${(file.size / 1_000_000).toFixed(2)}` }, ...current]);
       try {
-        await uploadSingleFile(file, uploadMode, (progress) => setFiles((current) => current.map((item) => item.id === id ? { ...item, progress } : item)));
+        await uploadSingleFile(file, (progress) => setFiles((current) => current.map((item) => item.id === id ? { ...item, progress } : item)));
         setFiles((current) => current.map((item) => item.id === id ? { ...item, status: "success", progress: 100 } : item));
       } catch (error) {
         setFiles((current) => current.map((item) => item.id === id ? { ...item, status: "error", progress: 0, message: error instanceof Error ? error.message : "Upload failed." } : item));
