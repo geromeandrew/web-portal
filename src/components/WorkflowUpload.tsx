@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2, Clipboard, LoaderCircle, RefreshCcw, Trash2, Upload, Zap } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { uploadFileThroughLambda, validateLambdaFile } from "../lib/uploadClient";
+import { createUploadId } from "../lib/uploadId";
 import { updateQueueItem, type UploadQueueItem } from "../lib/uploadState";
 import { formatBytes } from "../lib/utils";
 
@@ -30,7 +31,7 @@ export default function WorkflowUpload({ title, description, acceptLabel = "Supp
     setNotice(files.length > 1 ? "Lambda uploads one file at a time. The first file was selected." : null);
     const file = files[0];
     const rejection = validateLambdaFile(file);
-    const item: UploadQueueItem = { id: crypto.randomUUID(), file, status: rejection ? "rejected" : "queued", progress: 0, message: rejection ?? undefined };
+    const item: UploadQueueItem = { id: createUploadId(), file, status: rejection ? "rejected" : "queued", progress: 0, message: rejection ?? undefined };
     setItems((current) => [item, ...current]);
     if (!rejection) await lambdaUpload(item);
   };

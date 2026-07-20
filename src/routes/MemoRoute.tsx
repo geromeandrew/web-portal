@@ -5,6 +5,7 @@ import DemoTable from "../components/DemoTable";
 import PageHeader from "../components/PageHeader";
 import { memoErrors, memoHeaders } from "../lib/demoData";
 import { uploadSingleFile, validateWorkflowFile } from "../lib/uploadClient";
+import { createUploadId } from "../lib/uploadId";
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 type MemoFile = { id: string; name: string; status: "uploading" | "success" | "error"; progress: number; created: string; size: string; message?: string };
@@ -32,7 +33,7 @@ export default function MemoRoute() {
       return !error;
     });
     await Promise.all(valid.map(async (file) => {
-      const id = crypto.randomUUID();
+      const id = createUploadId();
       setFiles((current) => [{ id, name: file.name, status: "uploading", progress: 3, created: new Date().toLocaleString(), size: `${(file.size / 1_000_000).toFixed(2)}` }, ...current]);
       try {
         await uploadSingleFile(file, (progress) => setFiles((current) => current.map((item) => item.id === id ? { ...item, progress } : item)));

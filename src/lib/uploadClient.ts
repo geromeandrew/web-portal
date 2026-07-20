@@ -1,4 +1,5 @@
 import type { LambdaUploadResponse } from "../../shared/upload";
+import { createUploadId } from "./uploadId";
 import { sanitizeFileName } from "./utils";
 import type { UploadQueueItem } from "./uploadState";
 
@@ -93,7 +94,7 @@ export async function uploadSingleFile(file: File, onProgress: (progress: number
   if (rejection) throw new Error(rejection);
 
   const item: UploadQueueItem = {
-    id: crypto.randomUUID(),
+    id: createUploadId(),
     file: new File([file], sanitizeFileName(file.name), { type: file.type }),
     status: "queued",
     progress: 0,
