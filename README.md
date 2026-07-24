@@ -1,57 +1,49 @@
 # Web Portal
 
-React + Tailwind upload portal using AWS Lambda to store files in private S3. Lambda upload is the only available transfer method.
+React 18 portal with an Express API, PostgreSQL workspace state, JWT login, and Lambda-backed uploads. The browser calls only same-origin `/api` routes; Nginx keeps the API and database off the public network.
 
-## Commands
+## Run with Docker
 
-```bash
-pnpm install
-pnpm dev
-pnpm build
-pnpm test
-```
-
-## Frontend configuration
-
-Create `.env.local` from `.env.example`:
-
-```env
-VITE_LAMBDA_UPLOAD_URL=https://your-function-id.lambda-url.ap-southeast-1.on.aws
-VITE_LAMBDA_MAX_FILE_SIZE_BYTES=4500000
-```
-
-## Lambda configuration
-
-Deploy `lambda/lambda_function.py` with handler `lambda_function.lambda_handler`. It accepts `POST /` uploads and writes them to private S3.
-
-```env
-BUCKET_NAME=your-private-bucket
-S3_KEY_PREFIX=lambda
-MAX_FILE_SIZE_BYTES=4500000
-ALLOWED_MIME_TYPES=application/pdf,image/jpeg,image/png,image/webp,text/plain,application/zip,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-```
-
-Give the Lambda execution role `s3:PutObject` permission for the configured prefix. Configure Function URL CORS for `POST` and `OPTIONS`, with these headers:
-
-```text
-content-type, x-file-name, x-file-size, x-upload-id
-```
-
-## Docker deployment to EC2
-
-Docker builds the portal and serves it with non-root Nginx on port `3000`.
+1. Set `LAMBDA_UPLOAD_URL` in `.env` to the existing Lambda Function URL.
+2. Run `pnpm env:local -- --force` to generate the local PostgreSQL/JWT/admin settings without retaining legacy AWS access keys.
+3. Start the stack:
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-Open `http://<your-ec2-public-dns>:3000/`. Allow inbound TCP port `3000` in the EC2 security group and add that exact origin to Lambda Function URL CORS. The default EC2 hostname supports HTTP only; add HTTPS when you have a custom domain.
+Open `http://<host>:3000/` and sign in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`. The bootstrap account can create, deactivate, and reset accounts; every account has its own private workspace.
 
-## Validate
+The current portal datasets are seeded per workspace. The API persists upload metadata and workflow state, while the existing Lambda remains responsible for storing the uploaded file. Actual financial/ETL formulas are intentionally not inferred from the existing UI samples.
+
+## Local development
+
+Run PostgreSQL with `docker compose up db -d`, configure `.env`, then start the services in separate terminals:
 
 ```bash
-python -m py_compile lambda/lambda_function.py
+pnpm install
+pnpm env:local -- --force
+pnpm api:build
+pnpm db:migrate
+pnpm dev:api
+pnpm dev
+```
+
+Vite proxies `/api` to `http://127.0.0.1:3001` by default. Set `API_PROXY_TARGET` only when using a different local API address.
+
+## Commands
+
+```bash
 pnpm test
 pnpm build
+pnpm api:build
+pnpm db:migrate
+docker compose config
 ```
+
+## Security notes
+
+- Do not add AWS access keys to `.env`, Docker files, or browser configuration. Lambda retains responsibility for its own storage credentials.
+- JWTs are kept in browser `sessionStorage` to support the requested HTTP deployment. Use HTTPS before exposing the portal outside a trusted environment; browser-stored tokens remain vulnerable to XSS.
+- Rotate any cloud credentials that were previously placed in local or tracked environment files.

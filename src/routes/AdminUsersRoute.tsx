@@ -1,0 +1,19 @@
+import { FormEvent, useEffect, useState } from "react";
+import type { UserDto } from "../../shared/api";
+import { useAuth } from "../auth/AuthProvider";
+import { apiRequest, ApiClientError } from "../lib/apiClient";
+
+export default function AdminUsersRoute() {
+  const { user } = useAuth();
+  const [users, setUsers] = useState<Array<UserDto & { isActive: boolean }>>([]);
+  const [email, setEmail] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => { const response = await apiRequest<{ users: Array<UserDto & { isActive: boolean }> }>("/admin/users"); setUsers(response.users); };
+  useEffect(() => { if (user?.isBootstrapAdmin) void load().catch(() => setError("Unable to load users.")); }, [user?.isBootstrapAdmin]);
+  if (!user?.isBootstrapAdmin) return <p className="text-sm text-red-600">You do not have access to user management.</p>;
+  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(null); try { await apiRequest("/admin/users", { method: "POST", body: JSON.stringify({ email, temporaryPassword }) }); setEmail(""); setTemporaryPassword(""); await load(); } catch (reason) { setError(reason instanceof ApiClientError ? reason.message : "Unable to create user."); } finally { setBusy(false); } };
+  const toggle = async (candidate: UserDto & { isActive: boolean }) => { try { await apiRequest(`/admin/users/${candidate.id}`, { method: "PATCH", body: JSON.stringify({ isActive: !candidate.isActive }) }); await load(); } catch (reason) { setError(reason instanceof ApiClientError ? reason.message : "Unable to update user."); } };
+  return <div className="space-y-5"><section><p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal">Administration</p><h1 className="font-heading mt-2 text-3xl font-bold text-slate-900">User accounts</h1><p className="mt-2 text-sm text-slate-500">Every active user has the same portal permissions and a private workspace.</p></section><form onSubmit={submit} className="portal-panel grid gap-4 p-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end"><label className="text-sm font-semibold text-slate-700">Email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="portal-input mt-1.5 w-full" /></label><label className="text-sm font-semibold text-slate-700">Temporary password<input required minLength={12} type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} className="portal-input mt-1.5 w-full" /></label><button disabled={busy} className="portal-button-primary justify-center disabled:opacity-50">Create user</button></form>{error ? <p className="text-sm text-red-600">{error}</p> : null}<div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.04]"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="px-4 py-3">Email</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Created</th><th className="px-4 py-3" /></tr></thead><tbody>{users.map((candidate) => <tr key={candidate.id} className="border-t border-slate-100"><td className="px-4 py-3">{candidate.email}{candidate.isBootstrapAdmin ? <span className="ml-2 text-xs text-teal">Bootstrap admin</span> : null}</td><td className="px-4 py-3">{candidate.isActive ? "Active" : "Inactive"}</td><td className="px-4 py-3">{new Date(candidate.createdAt).toLocaleDateString()}</td><td className="px-4 py-3"><button disabled={candidate.id === user.id} onClick={() => void toggle(candidate)} className="text-teal hover:underline disabled:text-slate-400">{candidate.isActive ? "Deactivate" : "Activate"}</button></td></tr>)}</tbody></table></div></div>;
+}

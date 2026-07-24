@@ -1,7 +1,5 @@
 /**
- * Creates an identifier for browser-side upload state and the Lambda upload
- * header. `crypto.randomUUID` is unavailable on HTTP origins, so retain a
- * non-secret fallback for the temporary HTTP deployment.
+ * Creates an identifier for temporary browser-side upload queue state.
  */
 export function createUploadId() {
   const randomUuid = globalThis.crypto?.randomUUID;

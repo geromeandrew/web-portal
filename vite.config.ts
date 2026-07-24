@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
-  const lambdaUploadUrl = env.VITE_LAMBDA_UPLOAD_URL?.replace(/\/$/, "");
+  const apiTarget = env.API_PROXY_TARGET?.replace(/\/$/, "") ?? "http://127.0.0.1:3001";
 
   return {
     plugins: [react()],
@@ -11,15 +11,7 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 3000,
       proxy: {
-        ...(lambdaUploadUrl
-          ? {
-              "/lambda-upload": {
-                target: lambdaUploadUrl,
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/lambda-upload/, "") || "/",
-              },
-            }
-          : {}),
+        "/api": { target: apiTarget, changeOrigin: true },
       },
     },
     test: {
