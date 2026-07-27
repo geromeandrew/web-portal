@@ -1,49 +1,46 @@
 # Web Portal
 
-React 18 portal with an Express API, PostgreSQL workspace state, JWT login, and Lambda-backed uploads. The browser calls only same-origin `/api` routes; Nginx keeps the API and database off the public network.
+React 18 + Vite frontend for the Web Portal. Its Node.js API lives in the sibling [`../web-portal-api`](../web-portal-api) repository. Browser traffic stays same-origin: Nginx serves this application and proxies `/api/*` privately to the API container.
 
-## Run with Docker
+## Local development
 
-1. Set `LAMBDA_UPLOAD_URL` in `.env` to the existing Lambda Function URL.
-2. Run `pnpm env:local -- --force` to generate the local PostgreSQL/JWT/admin settings without retaining legacy AWS access keys.
-3. Start the stack:
+1. Start PostgreSQL and the API from `../web-portal-api`.
+2. Copy `.env.example` to `.env.local` if the API is not running at `http://127.0.0.1:3001`.
+3. Install and run the frontend:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+## Docker deployment
+
+The API stack must be up and healthy before this frontend stack starts. On the EC2 host, create the shared private network once:
+
+```bash
+docker network create web-portal-shared
+```
+
+Then deploy the API from `web-portal-api`, followed by this repository:
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-Open `http://<host>:3000/` and sign in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`. The bootstrap account can create, deactivate, and reset accounts; every account has its own private workspace.
-
-The current portal datasets are seeded per workspace. The API persists upload metadata and workflow state, while the existing Lambda remains responsible for storing the uploaded file. Actual financial/ETL formulas are intentionally not inferred from the existing UI samples.
-
-## Local development
-
-Run PostgreSQL with `docker compose up db -d`, configure `.env`, then start the services in separate terminals:
-
-```bash
-pnpm install
-pnpm env:local -- --force
-pnpm api:build
-pnpm db:migrate
-pnpm dev:api
-pnpm dev
-```
-
-Vite proxies `/api` to `http://127.0.0.1:3001` by default. Set `API_PROXY_TARGET` only when using a different local API address.
+The frontend is published on port `3000`. The API has no host port and is only reachable over the shared Docker network.
 
 ## Commands
 
 ```bash
 pnpm test
 pnpm build
-pnpm api:build
-pnpm db:migrate
+pnpm preview
 docker compose config
 ```
 
 ## Security notes
 
-- Do not add AWS access keys to `.env`, Docker files, or browser configuration. Lambda retains responsibility for its own storage credentials.
-- JWTs are kept in browser `sessionStorage` to support the requested HTTP deployment. Use HTTPS before exposing the portal outside a trusted environment; browser-stored tokens remain vulnerable to XSS.
-- Rotate any cloud credentials that were previously placed in local or tracked environment files.
+- Do not store API, database, JWT, administrator, or Lambda settings in this repository.
+- The API owns authentication, workspace state, uploads, and its connection to the existing Lambda upload service.
+- Configure HTTPS at the EC2 edge before exposing the portal beyond a trusted network.

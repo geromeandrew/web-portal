@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { UserDto } from "../../shared/api";
+import type { UserDto } from "../lib/apiTypes";
 import { apiRequest, setAccessToken } from "../lib/apiClient";
 
 type AuthContextValue = {

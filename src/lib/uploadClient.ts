@@ -1,4 +1,4 @@
-import type { UploadDto } from "../../shared/api";
+import type { UploadDto } from "./apiTypes";
 import { ApiClientError, getAccessToken } from "./apiClient";
 import { createUploadId } from "./uploadId";
 import { sanitizeFileName } from "./utils";

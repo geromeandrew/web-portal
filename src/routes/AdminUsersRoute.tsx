@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import type { UserDto } from "../../shared/api";
+import type { UserDto } from "../lib/apiTypes";
 import { useAuth } from "../auth/AuthProvider";
 import { apiRequest, ApiClientError } from "../lib/apiClient";
 

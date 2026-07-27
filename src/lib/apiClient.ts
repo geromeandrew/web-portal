@@ -1,4 +1,4 @@
-import type { ApiError } from "../../shared/api";
+import type { ApiError } from "./apiTypes";
 
 const TOKEN_KEY = "dtplus.accessToken";
 

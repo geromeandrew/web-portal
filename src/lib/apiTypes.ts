@@ -17,11 +17,6 @@ export type UploadDto = {
   uploadedAt: string;
 };
 
-export type UploadPolicyDto = {
-  maxFileSizeBytes: number;
-  allowedMimeTypes: string[];
-};
-
 export type ApiError = {
   error: { code: string; message: string; fields?: Record<string, string> };
 };
