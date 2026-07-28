@@ -12,8 +12,8 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background: #f2f2f7;
-  color: #1c1c1e;
+  background: #f5f8fa;
+  color: #17212b;
 }
 
 * {
@@ -28,7 +28,9 @@ body,
 
 body {
   margin: 0;
-  background: #f7fbfc;
+  background:
+    radial-gradient(circle at 0 0, rgba(21, 153, 160, 0.09), transparent 30rem),
+    linear-gradient(180deg, #fbfdfe 0%, #f4f8fa 100%);
 }
 
 button,
@@ -61,15 +63,15 @@ a {
 
 @layer components {
   .portal-panel {
-    @apply rounded-2xl bg-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-100;
+    @apply rounded-[1.5rem] bg-white shadow-[0_18px_50px_rgba(27,46,110,0.08)] ring-1 ring-slate-200/70;
   }
 
   .portal-page-header {
-    @apply relative overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br from-[#E8F8F5] via-sky-50 to-violet-50 px-5 py-5 shadow-lg shadow-sky-900/5 sm:px-6;
+    @apply relative isolate min-h-[220px] overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#e8f8f5] via-[#f3fbfc] to-[#edf4ff] px-7 py-9 shadow-[0_20px_60px_rgba(27,46,110,0.09)] sm:px-10 sm:py-11 lg:min-h-[250px] lg:px-12 lg:py-12;
   }
 
   .portal-page-glow {
-    @apply absolute -right-16 -top-20 h-48 w-48 rounded-full bg-sky-300/25 blur-3xl;
+    @apply absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-sky-300/30 blur-3xl;
   }
 
   .portal-eyebrow {
@@ -77,27 +79,39 @@ a {
   }
 
   .portal-tabs {
-    @apply flex gap-1 overflow-x-auto rounded-xl bg-white/80 p-1 ring-1 ring-slate-200/80;
+    @apply flex gap-1.5 overflow-x-auto rounded-[14px] bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/70 backdrop-blur;
   }
 
   .portal-tab {
-    @apply shrink-0 rounded-[9px] px-3 py-2 text-[13px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800;
+    @apply focus-ring shrink-0 rounded-[10px] px-4 py-2.5 text-[13px] font-medium text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-slate-800;
   }
 
   .portal-tab-active {
-    @apply bg-white text-teal shadow-sm ring-1 ring-slate-200/80;
+    @apply bg-white text-teal shadow-sm ring-1 ring-teal/10;
   }
 
   .portal-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-teal to-sky-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-teal/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-teal to-sky-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-teal/20 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal/25 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .portal-button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-white px-3 py-2 text-[13px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:text-teal hover:ring-teal/30;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[11px] bg-white px-4 py-2 text-[13px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-px hover:text-teal hover:ring-teal/30;
   }
 
   .portal-input {
-    @apply h-9 rounded-[10px] border-0 bg-slate-100 px-3 text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-teal/25;
+    @apply h-11 rounded-[11px] border-0 bg-slate-100/90 px-3.5 text-[13px] text-slate-800 outline-none ring-1 ring-transparent transition placeholder:text-slate-400 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-teal/25;
+  }
+
+  .portal-status {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold;
+  }
+
+  .portal-alert {
+    @apply flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[13px];
+  }
+
+  .portal-section-title {
+    @apply font-heading text-xl font-bold tracking-tight text-slate-900 sm:text-2xl;
   }
 }
 

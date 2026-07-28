@@ -17,7 +17,10 @@ export default {
       },
       colors: {
         navy: "#1B2E6E",
-        teal: "#1599A0",
+        teal: {
+          DEFAULT: "#1599A0",
+          100: "#c8f3ed",
+        },
         mint: "#E8F8F5",
         "mint-deep": "#D4EFE9",
         ink: "#0f1720",
