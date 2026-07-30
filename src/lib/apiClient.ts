@@ -45,3 +45,13 @@ export async function downloadApiFile(path: string, filename: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export async function fetchApiFile(path: string) {
+  const token = getAccessToken();
+  const response = await fetch(`/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as ApiError | null;
+    throw new ApiClientError(response.status, payload?.error.code ?? "FILE_REQUEST_FAILED", payload?.error.message ?? "The file could not be loaded.");
+  }
+  return { blob: await response.blob(), contentType: response.headers.get("content-type") ?? "application/octet-stream" };
+}

@@ -20,3 +20,12 @@ export type UploadDto = {
 export type ApiError = {
   error: { code: string; message: string; fields?: Record<string, string> };
 };
+
+export type BillingCycleStatus = "inbound" | "outbound" | "processed" | "error";
+
+export type BillingCycleFileDto = {
+  key: string;
+  name: string;
+  size: number;
+  lastModified: string | null;
+};

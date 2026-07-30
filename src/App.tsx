@@ -8,6 +8,8 @@ import PrepaidRoute from "./routes/PrepaidRoute";
 import ChangePasswordRoute from "./routes/ChangePasswordRoute";
 import LoginRoute from "./routes/LoginRoute";
 import AdminUsersRoute from "./routes/AdminUsersRoute";
+import BillingCycleFileViewRoute from "./routes/BillingCycleFileViewRoute";
+import BillingCycleRoute from "./routes/BillingCycleRoute";
 
 export default function App() {
   return (
@@ -23,6 +25,9 @@ export default function App() {
         <Route path="/memo/:section" element={<MemoRoute />} />
         <Route path="/aprm" element={<AprmRoute />} />
         <Route path="/aprm/:area" element={<AprmRoute />} />
+        <Route path="/billing-cycle" element={<Navigate to="/billing-cycle/files" replace />} />
+        <Route path="/billing-cycle/files" element={<BillingCycleRoute />} />
+        <Route path="/billing-cycle/files/view" element={<BillingCycleFileViewRoute />} />
         <Route path="/admin/users" element={<AdminUsersRoute />} />
       </Route>
     </Routes>
