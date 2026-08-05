@@ -21,11 +21,44 @@ export type ApiError = {
   error: { code: string; message: string; fields?: Record<string, string> };
 };
 
-export type BillingCycleStatus = "inbound" | "outbound" | "processed" | "error";
+export type ProcessingPipelineStage = "inbound" | "outbound" | "processed" | "error";
 
-export type BillingCycleFileDto = {
-  key: string;
-  name: string;
-  size: number;
+export type ProcessingPipelineFileDto = {
+  id: string;
+  stage: ProcessingPipelineStage;
+  expectedFileName: string;
+  matchedFileName: string | null;
+  legacyPackageName: string | null;
+  jobName: string | null;
+  availability: "present" | "missing";
+  key: string | null;
+  size: number | null;
   lastModified: string | null;
+};
+
+export type ProcessingPipelineFileListDto = {
+  configured: boolean;
+  files: ProcessingPipelineFileDto[];
+};
+
+export type ProcessingPipelineRunDto = {
+  jobRunId: string;
+  jobName: string;
+  startedAt: string;
+};
+
+export type ProcessingPipelineRunStatusDto = {
+  jobRunId: string;
+  jobName: string;
+  status: string;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  glueConsoleUrl: string;
+  cloudWatchLogsUrl: string;
+};
+
+export type ProcessingPipelineCatalogDto = {
+  pipelines: { label: string; code: string }[];
+  stages: { label: string; code: ProcessingPipelineStage }[];
 };

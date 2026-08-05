@@ -10,7 +10,7 @@ const links = [
   { to: "/prepaid/file-upload", label: "Prepaid Systems" },
   { to: "/memo/file-upload", label: "MemoApp SST" },
   { to: "/aprm", label: "APRM" },
-  { to: "/billing-cycle/files", label: "Billing Cycle" },
+  { to: "/processing-pipelines", label: "Processing Pipelines" },
 ];
 
 export default function AppShell() {
