@@ -34,6 +34,15 @@ export type ProcessingPipelineFileDto = {
   key: string | null;
   size: number | null;
   lastModified: string | null;
+  configuration?: {
+    acquisitionMethod: "webUpload" | "sftpPull";
+    remoteSftpSourceDirectory: string | null;
+    sourceFilePullRenameRules: string | null;
+    s3Destination: string;
+    legacyPackageName: string | null;
+    databaseSchemaDestination: string | null;
+    tableDestinations: string[];
+  };
 };
 
 export type ProcessingPipelineFileListDto = {

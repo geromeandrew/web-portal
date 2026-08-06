@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, Columns3, Search, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type DemoTableProps = {
   headers: string[];
@@ -35,6 +35,7 @@ export default function DemoTable({ headers, rows, ariaLabel, caption, actions, 
   const [visibleColumns, setVisibleColumns] = useState<number[]>(() => headers.map((_, index) => index));
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => groupBy ? new Set(rows.map(groupBy)) : new Set());
+  const knownGroupLabels = useRef<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const result = rows.filter((row) => row.join(" ").toLowerCase().includes(query.toLowerCase()));
@@ -65,7 +66,18 @@ export default function DemoTable({ headers, rows, ariaLabel, caption, actions, 
   useEffect(() => {
     setVisibleColumns(headers.map((_, index) => index));
   }, [headers]);
-  useEffect(() => setCollapsedGroups(groupBy ? new Set(rows.map(groupBy)) : new Set()), [groupBy, rows]);
+  useEffect(() => {
+    if (!groupBy) { knownGroupLabels.current = new Set(); setCollapsedGroups(new Set()); return; }
+    const labels = new Set(rows.map(groupBy));
+    setCollapsedGroups((current) => {
+      const next = new Set([...current].filter((label) => labels.has(label)));
+      // Only newly introduced groups begin collapsed. Existing groups retain
+      // the user's expanded/collapsed choice through data refreshes.
+      for (const label of labels) if (!knownGroupLabels.current.has(label)) next.add(label);
+      return next;
+    });
+    knownGroupLabels.current = labels;
+  }, [groupBy, rows]);
 
   const toggleColumn = (index: number) => setVisibleColumns((current) => current.includes(index) ? current.filter((candidate) => candidate !== index) : [...current, index].sort((left, right) => left - right));
   const resetColumns = () => setVisibleColumns(headers.map((_, index) => index));
