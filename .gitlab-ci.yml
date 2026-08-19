@@ -26,7 +26,7 @@ build_image:
         - tags
     artifacts:
         paths:
-            - /builds/globetelecom/platforms/e-cwt/applications/necwt-core-api/*.tar
+            - /builds/globetelecom/platforms/esatp/applications/esatp-webapp/*.tar
 
 scan_image:
     stage: scan_image
