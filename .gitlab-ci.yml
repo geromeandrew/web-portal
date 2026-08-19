@@ -14,10 +14,6 @@ stages:
     - scan_image
     - publish_image
 
-semgrep-sast:
-    variables:
-        SECURE_ANALYZERS_PREFIX: "$PE_ARTIFACTORY_URL/hmd-gitlab-registry/security-products" 
-
 
 build_image:
     stage: build_image
