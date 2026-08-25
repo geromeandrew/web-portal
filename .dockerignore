@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+node_modules
+dist
+build
+api/dist
+outputs
+coverage
+*.tsbuildinfo
+.wrangler
+*.log

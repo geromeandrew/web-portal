@@ -1,0 +1,20 @@
+name: web-portal-web
+
+services:
+  web:
+    build: .
+    image: web-portal:local
+    ports:
+      - "3000:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [portal]
+    restart: unless-stopped
+
+networks:
+  portal:
+    name: web-portal-shared
+    external: true
