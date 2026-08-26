@@ -83,7 +83,7 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log \
 COPY --from=builder /app/dist /usr/share/nginx/esatp-portal
 
 # Set open file and directory ownership for the unprivileged runtime engine
-RUN chown -R nginx:nginx /usr/share/nginx/esatp-portal
+RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Re-engage the secure, unprivileged runtime user
 USER nginx
