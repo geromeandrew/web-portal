@@ -28,36 +28,32 @@ LABEL version=$LABEL_VERSION
 
 USER root
 
-# Clean and point Alpine mirrors to v3.21 (Matches Node 22 Alpine)
-RUN cp /dev/null /etc/apk/repositories && \
-    echo "https://${JFROG_USERNAME}:${JFROG_ACCESS_TOKEN}@${JFROG_URL}/artifactory/hmd-alpinelinux/v3.21/main" >> /etc/apk/repositories && \
-    echo "https://${JFROG_USERNAME}:${JFROG_ACCESS_TOKEN}@${JFROG_URL}/artifactory/hmd-alpinelinux/v3.21/community" >> /etc/apk/repositories
+
+# clear alpine repos
+RUN cp /dev/null /etc/apk/repositories
+# add JFrog as primary alpine repos
+RUN echo "https://$JFROG_USERNAME:$JFROG_PASSWORD@$ARTIFACTORY_URL/artifactory/hmd-alpinelinux/v3.21/main" >> /etc/apk/repositories
+RUN echo "https://$JFROG_USERNAME:$JFROG_PASSWORD@$ARTIFACTORY_URL/artifactory/hmd-alpinelinux/v3.21/community" >> /etc/apk/repositories
+RUN echo "https://$JFROG_USERNAME:$JFROG_PASSWORD@$ARTIFACTORY_URL/artifactory/hmd-alpinelinux/edge/community" >> /etc/apk/repositories
+
+# Set environment variables
+ENV VIRTUAL_ENV=/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Install build dependencies
 RUN apk update && apk add --no-cache curl bash
 
 WORKDIR /app
 
-# Change ownership to the non-privileged node user
-RUN chown -R node:node /app
+COPY . .
 
-USER node
+# Step 1: Generate Base64 auth and write directly to .npmrc to avoid CLI parsing errors
+RUN AUTH_BASE64=$(printf "%s:%s" "$JFROG_USERNAME" "$JFROG_PASSWORD" | base64 | tr -d '\n') && \
+    echo "registry=https://${ARTIFACTORY_URL}/artifactory/api/npm/hmd-npm-virtual/" > ~/.npmrc && \
+    echo "//${ARTIFACTORY_URL}/artifactory/api/npm/hmd-npm-virtual/:_auth=${AUTH_BASE64}" >> ~/.npmrc && \
+    echo "always-auth=true" >> ~/.npmrc
 
-# Copy package manifests
-COPY --chown=node:node package*.json ./
-
-# Dependency Installation
-# Authenticate using the 'node' user's home directory (~)
-RUN echo "registry=https://${JFROG_URL}/artifactory/api/npm/hmd-npm-virtual" > ~/.npmrc && \
-    curl -u ${JFROG_USERNAME}:${JFROG_ACCESS_TOKEN} https://${JFROG_URL}/artifactory/api/npm/auth/ | \
-    sed "s,_auth = ,//${JFROG_URL}/artifactory/api/npm/hmd-npm-virtual/:_auth=\",g" | \
-    sed '1 s/$/"/' >> ~/.npmrc
-
-# Clean install all dependencies (including devDependencies needed for compiling React)
-RUN npm ci --loglevel verbose
-
-# Copy source code
-COPY --chown=node:node . .
+RUN npm install --verbose
 
 # Run React compilation
 RUN NODE_OPTIONS="--max_old_space_size=1024" npm run build
@@ -80,7 +76,7 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 
 # Copy Compiled Static React Web Assets from Stage 1
-COPY --from=builder /app/dist /usr/share/nginx/esatp-portal
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Set open file and directory ownership for the unprivileged runtime engine
 RUN chown -R nginx:nginx /usr/share/nginx/html
