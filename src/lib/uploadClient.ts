@@ -1,5 +1,5 @@
 import type { UploadDto } from "./apiTypes";
-import { ApiClientError, getAccessToken } from "./apiClient";
+import { ApiClientError, getAuthorizedToken, refreshAccessToken } from "./apiClient";
 import { createUploadId } from "./uploadId";
 import { sanitizeFileName } from "./utils";
 import type { UploadQueueItem } from "./uploadState";
@@ -29,10 +29,10 @@ function parseError(text: string, status: number) {
   }
 }
 
-export function uploadFileThroughApi(item: UploadQueueItem, workflow: "prepaid" | "memo" | "aprm", onProgress: (progress: number) => void, slot?: string): Promise<{ upload: UploadDto }> {
-  const token = getAccessToken();
-  if (!token) return Promise.reject(new Error("Your session has expired. Please sign in again."));
+export async function uploadFileThroughApi(item: UploadQueueItem, workflow: "prepaid" | "memo" | "aprm", onProgress: (progress: number) => void, slot?: string): Promise<{ upload: UploadDto }> {
+  const initialToken = await getAuthorizedToken();
   return new Promise((resolve, reject) => {
+    const send = (token: string, retried = false) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/uploads");
     xhr.responseType = "text";
@@ -52,6 +52,10 @@ export function uploadFileThroughApi(item: UploadQueueItem, workflow: "prepaid" 
         }
         return;
       }
+      if (xhr.status === 401 && !retried) {
+        void refreshAccessToken().then(({ accessToken }) => send(accessToken, true)).catch(reject);
+        return;
+      }
       reject(parseError(xhr.responseText, xhr.status));
     };
     xhr.onerror = () => reject(new Error("Network error during upload."));
@@ -60,6 +64,8 @@ export function uploadFileThroughApi(item: UploadQueueItem, workflow: "prepaid" 
     if (slot) body.append("slot", slot);
     body.append("file", item.file, item.file.name);
     xhr.send(body);
+    };
+    send(initialToken);
   });
 }
 

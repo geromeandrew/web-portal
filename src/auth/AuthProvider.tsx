@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { UserDto } from "../lib/apiTypes";
-import { apiRequest, setAccessToken } from "../lib/apiClient";
+import { apiRequest, refreshAccessToken, setAccessToken } from "../lib/apiClient";
 
 type AuthContextValue = {
   user: UserDto | null;
@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    void apiRequest<{ user: UserDto }>("/auth/me").then(({ user: current }) => setUser(current)).catch(() => setAccessToken(null)).finally(() => setReady(true));
+    void refreshAccessToken().then(({ user: current }) => setUser(current)).catch(() => setAccessToken(null)).finally(() => setReady(true));
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({

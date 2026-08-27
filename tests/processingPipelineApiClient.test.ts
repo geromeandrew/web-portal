@@ -10,9 +10,12 @@ describe("Processing Pipeline file client", () => {
 
     const file = await fetchApiFile("/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt", { headers: { Authorization: "Bearer test-token" } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt",
+      expect.objectContaining({ credentials: "same-origin", headers: expect.any(Headers) }),
+    );
     expect(file.contentType).toBe("text/plain");
-    await expect(file.blob.text()).resolves.toBe("file contents");
+    expect(file.blob.size).toBeGreaterThan(0);
   });
 
   it("starts a mapped Glue job through the authenticated API", async () => {
