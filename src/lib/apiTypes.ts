@@ -1,8 +1,6 @@
 export type UserDto = {
   id: string;
   email: string;
-  isBootstrapAdmin: boolean;
-  mustChangePassword: boolean;
   createdAt: string;
 };
 

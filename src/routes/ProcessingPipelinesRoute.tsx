@@ -33,7 +33,7 @@ export default function ProcessingPipelinesRoute() {
   const pendingUpload = useRef<ProcessingPipelineFileDto | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const timers = useRef<number[]>([]);
-  const isAdmin = Boolean(user?.isBootstrapAdmin);
+  const isAdmin = Boolean(user);
 
   const loadFiles = useCallback(async () => {
     if (!pipelineCode) return;

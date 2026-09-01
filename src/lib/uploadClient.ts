@@ -1,5 +1,5 @@
 import type { UploadDto } from "./apiTypes";
-import { ApiClientError, getAuthorizedToken, refreshAccessToken } from "./apiClient";
+import { ApiClientError, getAuthorizedToken, renewAccessToken } from "./apiClient";
 import { createUploadId } from "./uploadId";
 import { sanitizeFileName } from "./utils";
 import type { UploadQueueItem } from "./uploadState";
@@ -53,7 +53,7 @@ export async function uploadFileThroughApi(item: UploadQueueItem, workflow: "pre
         return;
       }
       if (xhr.status === 401 && !retried) {
-        void refreshAccessToken().then(({ accessToken }) => send(accessToken, true)).catch(reject);
+        void renewAccessToken().then((accessToken) => send(accessToken, true)).catch(reject);
         return;
       }
       reject(parseError(xhr.responseText, xhr.status));

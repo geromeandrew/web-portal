@@ -1,5 +1,20 @@
 # esatp-webapp
 
+React/Vite frontend for the ES-ATP portal.
+
+## Okta authentication
+
+The portal uses an Okta-hosted Authorization Code + PKCE flow. The local Okta
+application must register `http://localhost:5173/login/callback` as a sign-in
+redirect URI and `http://localhost:5173/login` as a sign-out redirect URI.
+
+Set `VITE_OKTA_CLIENT_ID` and `VITE_OKTA_ISSUER` when overriding the checked-in
+development defaults. Do not provide a client secret: this SPA is a public
+client and cannot keep one confidential.
+
+Run `pnpm dev` and open `http://localhost:5173`. The dev server uses a strict
+port because Okta redirect URIs must match exactly.
+
 
 
 ## Getting started

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Menu, ShieldCheck, UserRound, X } from "lucide-react";
+import { LogOut, Menu, UserRound, X } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
@@ -31,7 +31,6 @@ export default function AppShell() {
 
         <div className="flex items-center gap-2.5">
           <div className="hidden items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70 xl:flex"><span className="grid h-7 w-7 place-items-center rounded-lg bg-teal/10 text-teal"><UserRound className="h-3.5 w-3.5" /></span><span className="max-w-44 truncate text-[12px] font-medium text-slate-600">{user?.email}</span></div>
-          {user?.isBootstrapAdmin ? <NavLink to="/admin/users" className="focus-ring hidden items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-teal transition hover:bg-teal/5 lg:inline-flex"><ShieldCheck className="h-4 w-4" />Users</NavLink> : null}
           <button onClick={() => void logout()} className="focus-ring grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-teal/25 hover:bg-teal/5 hover:text-teal" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
           <button onClick={() => setMenuOpen((value) => !value)} className="focus-ring grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Toggle navigation" aria-expanded={menuOpen}>{menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button>
         </div>

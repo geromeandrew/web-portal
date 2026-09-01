@@ -1,42 +1,77 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useOktaAuth } from "@okta/okta-react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { UserDto } from "../lib/apiTypes";
-import { apiRequest, refreshAccessToken, setAccessToken } from "../lib/apiClient";
+import { apiRequest } from "../lib/apiClient";
 
 type AuthContextValue = {
   user: UserDto | null;
   ready: boolean;
-  login(email: string, password: string): Promise<void>;
+  login(originalUri?: string): Promise<void>;
   logout(): Promise<void>;
-  changePassword(currentPassword: string, newPassword: string): Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { oktaAuth, authState } = useOktaAuth();
   const [user, setUser] = useState<UserDto | null>(null);
-  const [ready, setReady] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
 
   useEffect(() => {
-    void refreshAccessToken().then(({ user: current }) => setUser(current)).catch(() => setAccessToken(null)).finally(() => setReady(true));
-  }, []);
+    let active = true;
+    if (!authState) {
+      setProfileReady(false);
+      return () => {
+        active = false;
+      };
+    }
+    if (!authState.isAuthenticated) {
+      setUser(null);
+      setProfileReady(true);
+      return () => {
+        active = false;
+      };
+    }
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user,
-    ready,
-    async login(email, password) {
-      const response = await apiRequest<{ accessToken: string; user: UserDto }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-      setAccessToken(response.accessToken);
-      setUser(response.user);
-    },
-    async logout() {
-      try { await apiRequest<void>("/auth/logout", { method: "POST" }); } finally { setAccessToken(null); setUser(null); }
-    },
-    async changePassword(currentPassword, newPassword) {
-      const response = await apiRequest<{ accessToken: string; user: UserDto }>("/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) });
-      setAccessToken(response.accessToken);
-      setUser(response.user);
-    },
-  }), [ready, user]);
+    setProfileReady(false);
+    void apiRequest<{ user: UserDto }>("/auth/me")
+      .then(({ user: current }) => {
+        if (active) setUser(current);
+      })
+      .catch(async () => {
+        if (!active) return;
+        setUser(null);
+        await oktaAuth.tokenManager.clear();
+      })
+      .finally(() => {
+        if (active) setProfileReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authState, oktaAuth]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      ready: Boolean(authState) && profileReady,
+      async login(originalUri = "/") {
+        await oktaAuth.signInWithRedirect({ originalUri });
+      },
+      async logout() {
+        setUser(null);
+        await oktaAuth.signOut();
+      },
+    }),
+    [authState, oktaAuth, profileReady, user],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,20 +1,32 @@
-import { LockKeyhole, Mail } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { LogIn, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import { ApiClientError } from "../lib/apiClient";
 
 export default function LoginRoute() {
   const { user, login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const location = useLocation();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (user) return <Navigate to="/" replace />;
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true); setError(null);
-    try { await login(email, password); } catch (reason) { setError(reason instanceof ApiClientError ? reason.message : "Unable to sign in."); } finally { setBusy(false); }
+
+  const originalUri =
+    typeof location.state === "object" &&
+    location.state &&
+    "from" in location.state &&
+    typeof location.state.from === "string"
+      ? location.state.from
+      : "/";
+
+  const signIn = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await login(originalUri);
+    } catch {
+      setError("Unable to start Okta sign-in. Please try again.");
+      setBusy(false);
+    }
   };
 
   return <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#F7FBFC] px-5 py-10">
@@ -28,16 +40,17 @@ export default function LoginRoute() {
         <p className="relative font-heading max-w-xs text-4xl font-bold leading-tight tracking-tight">Data Transformation Plus</p>
       </div>
 
-      <form onSubmit={submit} className="flex flex-col justify-center p-8 sm:p-12 lg:p-16">
+      <div className="flex flex-col justify-center p-8 sm:p-12 lg:p-16">
         <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-teal to-sky-500 font-bold text-white shadow-lg shadow-teal/20 md:hidden">DT</div>
         <p className="mt-7 text-xs font-semibold uppercase tracking-[0.12em] text-teal md:mt-0">Data Transformation Plus</p>
         <h1 className="font-heading mt-3 text-4xl font-bold tracking-tight text-slate-900">Sign in</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-500">Use the account created by your portal administrator.</p>
-        <label className="mt-9 block text-sm font-semibold text-slate-700">Email<span className="relative mt-2 block"><Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="portal-input w-full pl-10" autoComplete="email" /></span></label>
-        <label className="mt-5 block text-sm font-semibold text-slate-700">Password<span className="relative mt-2 block"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="portal-input w-full pl-10" autoComplete="current-password" /></span></label>
+        <p className="mt-3 text-sm leading-6 text-slate-500">Continue to Globe Okta to securely access the portal.</p>
+        <div className="mt-9 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/70">
+          <div className="flex items-start gap-3 text-sm leading-6 text-slate-600"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal" /><span>Authentication and account access are managed by your organization.</span></div>
+        </div>
         {error ? <p className="portal-alert mt-5 border-rose-200 bg-rose-50 text-rose-700" role="alert">{error}</p> : null}
-        <button disabled={busy} className="focus-ring portal-button-primary mt-8 w-full justify-center">{busy ? "Signing in…" : "Sign in"}</button>
-      </form>
+        <button type="button" disabled={busy} onClick={() => void signIn()} className="focus-ring portal-button-primary mt-8 w-full justify-center"><LogIn className="h-4 w-4" />{busy ? "Redirecting…" : "Sign in with Okta"}</button>
+      </div>
     </section>
   </main>;
 }

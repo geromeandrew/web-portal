@@ -1,9 +1,9 @@
-import { setAccessToken } from "../src/lib/apiClient";
+import { setAccessTokenProviderForTests } from "../src/lib/apiClient";
 import { uploadFileThroughApi, validateUploadFile, validateWorkflowFile } from "../src/lib/uploadClient";
 
 describe("API upload client", () => {
-  beforeEach(() => setAccessToken("test-token"));
-  afterEach(() => { setAccessToken(null); vi.unstubAllGlobals(); });
+  beforeEach(() => setAccessTokenProviderForTests({ get: async () => "test-token", renew: async () => "renewed-token" }));
+  afterEach(() => { setAccessTokenProviderForTests(null); vi.unstubAllGlobals(); });
 
   it("accepts a supported small file", () => {
     expect(validateUploadFile(new File(["hello"], "hello.txt", { type: "text/plain" }))).toBeNull();

@@ -11,6 +11,8 @@
     "start": "serve -s dist"
   },
   "dependencies": {
+    "@okta/okta-auth-js": "^8.0.1",
+    "@okta/okta-react": "^6.11.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.539.0",
