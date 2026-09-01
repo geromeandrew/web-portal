@@ -2,12 +2,19 @@ import { OktaAuth } from "@okta/okta-auth-js";
 import { configureAccessTokenProvider } from "../lib/apiClient";
 
 const origin = window.location.origin;
+const clientId = import.meta.env.VITE_OKTA_CLIENT_ID;
+const issuer =
+  import.meta.env.VITE_OKTA_ISSUER || "https://globe.okta.com/oauth2/default";
+
+if (!clientId) {
+  throw new Error(
+    "Missing VITE_OKTA_CLIENT_ID. Set it in .env for pnpm local or in the EKS build configuration.",
+  );
+}
 
 export const oktaConfig = {
-  clientId: import.meta.env.VITE_OKTA_CLIENT_ID,
-  issuer: (
-    import.meta.env.VITE_OKTA_ISSUER || "https://globe.okta.com/oauth2/default"
-  ).replace(/\/$/, ""),
+  clientId,
+  issuer: issuer.replace(/\/$/, ""),
   redirectUri: `${origin}/login/callback`,
   postLogoutRedirectUri: `${origin}/login`,
   scopes: ["openid", "profile", "email"],
