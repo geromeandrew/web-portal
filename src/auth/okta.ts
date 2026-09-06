@@ -4,7 +4,8 @@ import { configureAccessTokenProvider } from "../lib/apiClient";
 const origin = window.location.origin;
 const clientId = import.meta.env.VITE_OKTA_CLIENT_ID;
 const issuer =
-  import.meta.env.VITE_OKTA_ISSUER || "https://globe.okta.com/oauth2/default";
+  import.meta.env.VITE_OKTA_ISSUER ||
+  "https://globemfa.okta.com/oauth2/default";
 
 if (!clientId) {
   throw new Error(

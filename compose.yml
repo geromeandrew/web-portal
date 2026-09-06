@@ -6,7 +6,7 @@ services:
       context: .
       args:
         VITE_OKTA_CLIENT_ID: ${VITE_OKTA_CLIENT_ID:-0oa28lk9m5953nLCA0h8}
-        VITE_OKTA_ISSUER: ${VITE_OKTA_ISSUER:-https://globe.okta.com/oauth2/default}
+        VITE_OKTA_ISSUER: ${VITE_OKTA_ISSUER:-https://globemfa.okta.com/oauth2/default}
     image: web-portal:local
     ports:
       - "5173:8080"
