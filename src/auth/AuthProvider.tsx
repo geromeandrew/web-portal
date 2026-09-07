@@ -19,6 +19,35 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const previewUser: UserDto = {
+  id: "ui-preview-user",
+  email: "juan.miguel.delacruz@globe.com",
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+/**
+ * Temporary UI-review provider. It deliberately mirrors AuthProvider's public
+ * contract so no route needs special-case authentication logic.
+ */
+export function TemporaryAuthBypassProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UserDto | null>(null);
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      ready: true,
+      async login() {
+        setUser(previewUser);
+      },
+      async logout() {
+        setUser(null);
+      },
+    }),
+    [user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { oktaAuth, authState } = useOktaAuth();
   const [user, setUser] = useState<UserDto | null>(null);

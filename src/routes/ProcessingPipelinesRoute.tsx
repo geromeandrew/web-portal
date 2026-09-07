@@ -1,10 +1,13 @@
 import { AlertCircle, CheckCircle2, ExternalLink, FolderTree, LoaderCircle, Play, RefreshCcw, ShieldCheck, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import DemoTable from "../components/DemoTable";
 import PageHeader from "../components/PageHeader";
 import { apiRequest } from "../lib/apiClient";
 import type { ProcessingPipelineBatchExecutionDetailsDto, ProcessingPipelineBatchRunDto, ProcessingPipelineCatalogDto, ProcessingPipelineExecutionDetailsDto, ProcessingPipelineFileDto, ProcessingPipelineFileListDto, ProcessingPipelineRunDto, ProcessingPipelineRunStatusDto, ProcessingPipelineStage } from "../lib/apiTypes";
+import BillCycleWorkspace from "../components/BillCycleWorkspace";
+import { isBillCycleWorkspace, resolveWorkspacePipelineCode, workspaces } from "../lib/workspaces";
 
 const stages: { code: ProcessingPipelineStage; label: string }[] = [{ code: "inbound", label: "Inbound" }, { code: "outbound", label: "Outbound" }, { code: "processed", label: "Processed" }, { code: "error", label: "Error" }];
 const terminalStatuses = new Set(["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED", "PENDING_REDRIVE", "STATUS_UNAVAILABLE"]);
@@ -14,6 +17,15 @@ type UploadState = { status: "uploading" | "uploaded" | "failed"; message?: stri
 type PendingAction = { kind: "single"; file: ProcessingPipelineFileDto; details: ProcessingPipelineExecutionDetailsDto } | { kind: "batch"; details: ProcessingPipelineBatchExecutionDetailsDto };
 
 export default function ProcessingPipelinesRoute() {
+  const [searchParams] = useSearchParams();
+  const workspaceId = searchParams.get("workspace");
+  const workspace = workspaces.find((item) => item.id === workspaceId);
+
+  if (isBillCycleWorkspace(workspace)) return <BillCycleWorkspace workspace={workspace} />;
+  return <GenericProcessingPipelinesRoute workspaceId={workspaceId} />;
+}
+
+function GenericProcessingPipelinesRoute({ workspaceId }: { workspaceId: string | null }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"files" | "batch">("files");
   const [pipelineCode, setPipelineCode] = useState("");
@@ -57,7 +69,17 @@ export default function ProcessingPipelinesRoute() {
   }, [pipelineCode]);
   const schedulePoll = useCallback((runKey: string, runId: string) => { timers.current.push(window.setTimeout(() => void pollRun(runKey, runId), 1200)); }, [pollRun]);
 
-  useEffect(() => { void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines").then(setCatalog).catch((error) => setNotice(error instanceof Error ? error.message : "Processing Pipelines could not be loaded.")); }, []);
+  useEffect(() => {
+    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines")
+      .then((result) => {
+        setCatalog(result);
+        if (!workspaceId) return;
+        const resolvedCode = resolveWorkspacePipelineCode(workspaceId, result.pipelines);
+        if (resolvedCode) setPipelineCode(resolvedCode);
+        else setNotice("The requested workspace is not available in the current pipeline catalog. Choose a pipeline to continue.");
+      })
+      .catch((error) => setNotice(error instanceof Error ? error.message : "Processing Pipelines could not be loaded."));
+  }, [workspaceId]);
   useEffect(() => { setFiles([]); setRuns({}); setUploads({}); setBatchDetails(null); setBatchCycle(""); if (pipelineCode) void loadFiles(); }, [pipelineCode, loadFiles]);
   useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
   useEffect(() => { if (!pendingAction) return; const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape" && !starting) setPendingAction(null); }; document.addEventListener("keydown", onKeyDown); return () => document.removeEventListener("keydown", onKeyDown); }, [pendingAction, starting]);

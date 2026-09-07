@@ -1,4 +1,5 @@
 import type { ApiError } from "./apiTypes";
+import { isOktaAuthEnabled } from "../auth/authMode";
 
 export type AccessTokenProvider = {
   get(): Promise<string | null>;
@@ -48,6 +49,10 @@ export async function renewAccessToken() {
   return token;
 }
 
+export async function getAccessTokenForRequest() {
+  return isOktaAuthEnabled() ? getAuthorizedToken() : null;
+}
+
 async function authorizedFetch(
   path: string,
   options: RequestInit = {},
@@ -55,10 +60,8 @@ async function authorizedFetch(
   tokenOverride?: string,
 ) {
   const headers = new Headers(options.headers);
-  headers.set(
-    "Authorization",
-    `Bearer ${tokenOverride ?? (await getAuthorizedToken())}`,
-  );
+  const token = tokenOverride ?? (await getAccessTokenForRequest());
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   if (
     options.body &&
     !(options.body instanceof FormData) &&
@@ -71,7 +74,7 @@ async function authorizedFetch(
     headers,
     credentials: options.credentials ?? "same-origin",
   });
-  if (response.status === 401 && !retried) {
+  if (isOktaAuthEnabled() && response.status === 401 && !retried) {
     const renewedToken = await renewAccessToken();
     return authorizedFetch(path, options, true, renewedToken);
   }

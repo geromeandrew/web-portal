@@ -1,5 +1,6 @@
 import type { UploadDto } from "./apiTypes";
-import { ApiClientError, getAuthorizedToken, renewAccessToken } from "./apiClient";
+import { ApiClientError, getAccessTokenForRequest, renewAccessToken } from "./apiClient";
+import { isOktaAuthEnabled } from "../auth/authMode";
 import { createUploadId } from "./uploadId";
 import { sanitizeFileName } from "./utils";
 import type { UploadQueueItem } from "./uploadState";
@@ -30,13 +31,13 @@ function parseError(text: string, status: number) {
 }
 
 export async function uploadFileThroughApi(item: UploadQueueItem, workflow: "prepaid" | "memo" | "aprm", onProgress: (progress: number) => void, slot?: string): Promise<{ upload: UploadDto }> {
-  const initialToken = await getAuthorizedToken();
+  const initialToken = await getAccessTokenForRequest();
   return new Promise((resolve, reject) => {
-    const send = (token: string, retried = false) => {
+    const send = (token: string | null, retried = false) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/uploads");
     xhr.responseType = "text";
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.max(1, Math.min(98, Math.round((event.loaded / event.total) * 98))));
     };
@@ -52,7 +53,7 @@ export async function uploadFileThroughApi(item: UploadQueueItem, workflow: "pre
         }
         return;
       }
-      if (xhr.status === 401 && !retried) {
+      if (isOktaAuthEnabled() && xhr.status === 401 && !retried) {
         void renewAccessToken().then((accessToken) => send(accessToken, true)).catch(reject);
         return;
       }
