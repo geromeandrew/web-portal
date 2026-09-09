@@ -11,7 +11,12 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const auth = vi.hoisted(() => ({
   logout: vi.fn<() => Promise<void>>(),
-  user: { id: "user-1", email: "juan.miguel@globe.com", createdAt: "2026-01-01T00:00:00.000Z" },
+  user: {
+    id: "user-1",
+    email: "juan.miguel@globe.com",
+    displayName: "Juan Miguel Dela Cruz",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
 }));
 
 vi.mock("../src/auth/AuthProvider", () => ({
@@ -37,7 +42,9 @@ describe("AppShell", () => {
   it("offers workspace navigation, the administrator placeholder, and sign-out", async () => {
     await act(async () => {
       root.render(
-        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<Outlet />} />
@@ -47,16 +54,31 @@ describe("AppShell", () => {
       );
     });
 
-    const workspaceButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Workspace")) as HTMLButtonElement;
+    const workspaceButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.textContent?.includes("Workspace"),
+    ) as HTMLButtonElement;
     await act(async () => workspaceButton.click());
-    expect(container.querySelector('a[href="/processing-pipelines?workspace=bss-bill-cycle-globe"]')?.textContent).toBe("BSS Bill Cycle - Globe");
+    expect(
+      container.querySelector(
+        'a[href="/processing-pipelines?workspace=bss-bill-cycle-globe"]',
+      )?.textContent,
+    ).toBe("BSS Bill Cycle - Globe");
 
-    const administratorButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Administrator")) as HTMLButtonElement;
+    const administratorButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.textContent?.includes("Administrator"),
+    ) as HTMLButtonElement;
     await act(async () => administratorButton.click());
     expect(container.textContent).toContain("Coming soon");
 
-    const signOutButton = container.querySelector('button[aria-label="Sign out"]') as HTMLButtonElement;
+    const signOutButton = container.querySelector(
+      'button[aria-label="Sign out"]',
+    ) as HTMLButtonElement;
     await act(async () => signOutButton.click());
     expect(auth.logout).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("Juan Miguel Dela Cruz");
   });
 });

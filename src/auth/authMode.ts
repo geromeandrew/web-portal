@@ -1,10 +1,7 @@
 /**
- * TEMPORARY LOCAL UI-REVIEW SWITCH.
- *
- * Set this to true before restoring the normal Okta flow or deploying the
- * frontend. Keep it false only while the matching local API bypass is active.
+ * Enables the normal Okta Authorization Code + PKCE flow.
  */
-export const ENABLE_OKTA_AUTH = false;
+export const ENABLE_OKTA_AUTH = true;
 
 let testOverride: boolean | null = null;
 

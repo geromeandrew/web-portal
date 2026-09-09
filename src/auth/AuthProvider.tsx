@@ -13,6 +13,7 @@ import { apiRequest } from "../lib/apiClient";
 type AuthContextValue = {
   user: UserDto | null;
   ready: boolean;
+  error: string | null;
   login(originalUri?: string): Promise<void>;
   logout(): Promise<void>;
 };
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const previewUser: UserDto = {
   id: "ui-preview-user",
   email: "juan.miguel.delacruz@globe.com",
+  displayName: "Juan Miguel Dela Cruz",
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -29,12 +31,17 @@ const previewUser: UserDto = {
  * Temporary UI-review provider. It deliberately mirrors AuthProvider's public
  * contract so no route needs special-case authentication logic.
  */
-export function TemporaryAuthBypassProvider({ children }: { children: ReactNode }) {
+export function TemporaryAuthBypassProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [user, setUser] = useState<UserDto | null>(null);
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       ready: true,
+      error: null,
       async login() {
         setUser(previewUser);
       },
@@ -52,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { oktaAuth, authState } = useOktaAuth();
   const [user, setUser] = useState<UserDto | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setProfileReady(false);
+    setError(null);
     void apiRequest<{ user: UserDto }>("/auth/me")
       .then(({ user: current }) => {
         if (active) setUser(current);
@@ -77,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(async () => {
         if (!active) return;
         setUser(null);
+        setError("We couldn't complete sign-in. Please try again.");
         await oktaAuth.tokenManager.clear();
       })
       .finally(() => {
@@ -91,15 +101,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       ready: Boolean(authState) && profileReady,
+      error,
       async login(originalUri = "/") {
+        setError(null);
         await oktaAuth.signInWithRedirect({ originalUri });
       },
       async logout() {
         setUser(null);
-        await oktaAuth.signOut();
+        setError(null);
+        await oktaAuth.signOut({
+          postLogoutRedirectUri: `${window.location.origin}/login`,
+        });
       },
     }),
-    [authState, oktaAuth, profileReady, user],
+    [authState, error, oktaAuth, profileReady, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
