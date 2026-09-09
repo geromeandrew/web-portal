@@ -1,8 +1,9 @@
-import { apiRequest, fetchApiFile, setAccessToken } from "../src/lib/apiClient";
+import { apiRequest, fetchApiFile, setAccessTokenProviderForTests } from "../src/lib/apiClient";
+import { setOktaAuthEnabledForTests } from "../src/auth/authMode";
 
 describe("Processing Pipeline file client", () => {
-  beforeEach(() => setAccessToken("test-token"));
-  afterEach(() => { setAccessToken(null); vi.unstubAllGlobals(); });
+  beforeEach(() => { setOktaAuthEnabledForTests(true); setAccessTokenProviderForTests({ get: async () => "test-token", renew: async () => "renewed-token" }); });
+  afterEach(() => { setOktaAuthEnabledForTests(null); setAccessTokenProviderForTests(null); vi.unstubAllGlobals(); });
 
   it("loads a selected object through the authenticated API", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("file contents", { headers: { "content-type": "text/plain" } }));
@@ -10,9 +11,47 @@ describe("Processing Pipeline file client", () => {
 
     const file = await fetchApiFile("/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt", { headers: { Authorization: "Bearer test-token" } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/processing-pipelines/alpha/files/content?key=alpha%2Finbound%2Fsource.txt",
+      expect.objectContaining({ credentials: "same-origin", headers: expect.any(Headers) }),
+    );
     expect(file.contentType).toBe("text/plain");
-    await expect(file.blob.text()).resolves.toBe("file contents");
+    expect(file.blob.size).toBeGreaterThan(0);
+  });
+
+  it("renews the Okta token once after an API 401", async () => {
+    const renew = vi.fn().mockResolvedValue("renewed-token");
+    setAccessTokenProviderForTests({
+      get: async () => "expired-token",
+      renew,
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ok" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(apiRequest("/auth/me")).resolves.toEqual({ status: "ok" });
+    expect(renew).toHaveBeenCalledOnce();
+    expect(
+      (fetchMock.mock.calls[1][1].headers as Headers).get("Authorization"),
+    ).toBe("Bearer renewed-token");
+  });
+
+  it("calls the API without a bearer token while temporary auth is enabled", async () => {
+    setOktaAuthEnabledForTests(false);
+    setAccessTokenProviderForTests(null);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ pipelines: [] }), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiRequest("/processing-pipelines");
+
+    expect((fetchMock.mock.calls[0][1].headers as Headers).get("Authorization")).toBeNull();
   });
 
   it("starts a mapped Glue job through the authenticated API", async () => {

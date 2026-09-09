@@ -14,6 +14,15 @@ export default {
           "sans-serif",
         ],
         heading: ["Montserrat", "Inter", "-apple-system", "BlinkMacSystemFont", "\"Segoe UI\"", "sans-serif"],
+        // FS Elliot Pro is the approved brand font. Public Sans is a legal,
+        // metrically compatible fallback until its licensed webfont kit is added.
+        elliot: [
+          "\"FS Elliot Pro\"",
+          "\"FS Elliot\"",
+          "\"Public Sans\"",
+          "Arial",
+          "sans-serif",
+        ],
       },
       colors: {
         navy: "#1B2E6E",

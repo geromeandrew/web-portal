@@ -1,43 +1,129 @@
-import { LockKeyhole, Mail } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import { ApiClientError } from "../lib/apiClient";
+import loginIllustration from "../assets/login-illustration.png";
+import oktaLogo from "../assets/okta-logo.png";
+
+// Keep the page's visual system together so future UI changes do not require
+// hunting through shared portal styles.
+const loginUi = {
+  screen: "grid min-h-screen place-items-center bg-[#f5f9fa] px-6 py-12",
+  layout:
+    "grid w-full max-w-[332px] gap-10 bg-white lg:h-[361px] lg:w-[876px] lg:max-w-none lg:grid-cols-[332px_544px] lg:gap-0",
+  illustration:
+    "aspect-[332/361] w-full object-cover object-center lg:h-[361px] lg:w-[332px] lg:aspect-auto",
+  brandPanel: "grid place-items-center lg:h-[361px] lg:w-[544px]",
+  brandContent: "w-full lg:w-[332px] lg:translate-y-1",
+  title:
+    "m-0 whitespace-nowrap font-elliot text-[clamp(3.5rem,20vw,5.8125rem)] font-extrabold leading-none tracking-[-0.055em] text-[#244797] lg:-translate-y-[11px] lg:text-[93px]",
+  subtitle:
+    "mt-1 font-elliot text-[14px] leading-6 text-[#244797] sm:text-base lg:-translate-y-[14px]",
+  // Kept as fixed design dimensions, capped at the available mobile width.
+  ssoButton:
+    "mt-[19px] grid h-[46px] w-full max-w-[305px] grid-cols-[47px_minmax(0,1fr)] overflow-hidden rounded-[6px] border-2 border-[#007ac3] bg-[#087dca] p-0 font-elliot text-[13px] font-medium text-white transition-colors hover:bg-[#0674bb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007ac3] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f9fa] disabled:cursor-wait disabled:opacity-70",
+  oktaWordmark:
+    "grid h-full place-items-center border-r border-[#007ac3] bg-white",
+  oktaLogo: "h-auto w-[36px]",
+  ssoLabel: "grid h-full place-items-center text-center leading-none",
+  error: "mt-3 text-sm leading-5 text-rose-700",
+};
+
+function LoginIllustration() {
+  return (
+    <img
+      src={loginIllustration}
+      alt="Person using a laptop"
+      className={loginUi.illustration}
+    />
+  );
+}
+
+function OktaSsoButton({
+  busy,
+  onSignIn,
+}: {
+  busy: boolean;
+  onSignIn(): void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onSignIn}
+      className={loginUi.ssoButton}
+      aria-busy={busy}
+    >
+      <span className={loginUi.oktaWordmark}>
+        <img src={oktaLogo} alt="Okta" className={loginUi.oktaLogo} />
+      </span>
+      <span className={loginUi.ssoLabel}>
+        {busy ? "Redirecting…" : "Log in with OKTA SSO"}
+      </span>
+    </button>
+  );
+}
 
 export default function LoginRoute() {
   const { user, login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const callbackError =
+    typeof location.state === "object" &&
+    location.state &&
+    "authError" in location.state &&
+    typeof location.state.authError === "string"
+      ? location.state.authError
+      : null;
+  const [error, setError] = useState<string | null>(callbackError);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setError(callbackError);
+  }, [callbackError]);
+
   if (user) return <Navigate to="/" replace />;
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true); setError(null);
-    try { await login(email, password); } catch (reason) { setError(reason instanceof ApiClientError ? reason.message : "Unable to sign in."); } finally { setBusy(false); }
+
+  const originalUri =
+    typeof location.state === "object" &&
+    location.state &&
+    "from" in location.state &&
+    typeof location.state.from === "string"
+      ? location.state.from
+      : "/";
+
+  const signIn = async () => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      await login(originalUri);
+    } catch {
+      setError("Unable to start Okta sign-in. Please try again.");
+      setBusy(false);
+    }
   };
 
-  return <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#F7FBFC] px-5 py-10">
-    <div className="absolute -left-28 -top-28 h-[30rem] w-[30rem] rounded-full bg-teal/10 blur-3xl" />
-    <div className="absolute -bottom-36 -right-24 h-[32rem] w-[32rem] rounded-full bg-sky-200/45 blur-3xl" />
-    <section className="relative grid w-full max-w-5xl overflow-hidden rounded-[2rem] bg-white shadow-[0_32px_100px_rgba(27,46,110,0.16)] ring-1 ring-slate-200/70 md:min-h-[620px] md:grid-cols-[.9fr_1.1fr]">
-      <div className="relative hidden overflow-hidden bg-navy p-12 text-white md:flex md:flex-col md:justify-between">
-        <div className="absolute -bottom-32 -right-32 h-80 w-80 rounded-full border-[54px] border-teal/20" />
-        <div className="absolute right-12 top-16 h-20 w-20 rounded-full bg-teal/20 blur-2xl" />
-        <div className="relative grid h-12 w-12 place-items-center rounded-[15px] bg-gradient-to-br from-teal to-sky-500 text-sm font-bold text-white shadow-lg shadow-teal/20">DT</div>
-        <p className="relative font-heading max-w-xs text-4xl font-bold leading-tight tracking-tight">Data Transformation Plus</p>
-      </div>
+  return (
+    <main className={loginUi.screen}>
+      <div className={loginUi.layout}>
+        <LoginIllustration />
 
-      <form onSubmit={submit} className="flex flex-col justify-center p-8 sm:p-12 lg:p-16">
-        <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-teal to-sky-500 font-bold text-white shadow-lg shadow-teal/20 md:hidden">DT</div>
-        <p className="mt-7 text-xs font-semibold uppercase tracking-[0.12em] text-teal md:mt-0">Data Transformation Plus</p>
-        <h1 className="font-heading mt-3 text-4xl font-bold tracking-tight text-slate-900">Sign in</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-500">Use the account created by your portal administrator.</p>
-        <label className="mt-9 block text-sm font-semibold text-slate-700">Email<span className="relative mt-2 block"><Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="portal-input w-full pl-10" autoComplete="email" /></span></label>
-        <label className="mt-5 block text-sm font-semibold text-slate-700">Password<span className="relative mt-2 block"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="portal-input w-full pl-10" autoComplete="current-password" /></span></label>
-        {error ? <p className="portal-alert mt-5 border-rose-200 bg-rose-50 text-rose-700" role="alert">{error}</p> : null}
-        <button disabled={busy} className="focus-ring portal-button-primary mt-8 w-full justify-center">{busy ? "Signing in…" : "Sign in"}</button>
-      </form>
-    </section>
-  </main>;
+        <section className={loginUi.brandPanel} aria-labelledby="login-title">
+          <div className={loginUi.brandContent}>
+            <h1 id="login-title" className={loginUi.title}>
+              ES-ATP
+            </h1>
+            <p className={loginUi.subtitle}>
+              Automation and Transformation Platform
+            </p>
+            <OktaSsoButton busy={busy} onSignIn={() => void signIn()} />
+            {error ? (
+              <p className={loginUi.error} role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }

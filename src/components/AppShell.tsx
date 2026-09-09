@@ -1,46 +1,200 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Menu, ShieldCheck, UserRound, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { getUserDisplayName } from "../lib/userDisplay";
+import { workspaces, workspaceHref } from "../lib/workspaces";
 import { cn } from "../lib/utils";
+import globeLogo from "../assets/globe-logo.png";
+import userIcon from "../assets/user-icon.svg";
 
-const links = [
-  { to: "/", label: "DT+ Home", end: true },
-  { to: "/prepaid/file-upload", label: "Prepaid Systems" },
-  { to: "/memo/file-upload", label: "MemoApp SST" },
-  { to: "/aprm", label: "APRM" },
-  { to: "/processing-pipelines", label: "Processing Pipelines" },
-];
+const shellUi = {
+  shell: "min-h-screen bg-[#f2f7fe] text-[#121926]",
+  header: "sticky top-0 z-40 border-b border-[#edf1f7] bg-white",
+  headerContent:
+    "mx-auto flex h-[72px] w-full max-w-none items-center justify-between px-5 sm:px-8 lg:w-[84.7%] lg:px-0",
+  logo: "focus-ring rounded-md font-elliot text-[21px] font-bold tracking-[-0.045em] text-[#244797] 2xl:text-[24px]",
+  desktopNav: "hidden h-full items-center gap-7 lg:flex",
+  navLink:
+    "focus-ring relative flex h-full items-center font-elliot text-[13px] font-medium text-[#151923] transition-colors hover:text-[#087dca] 2xl:text-[15px]",
+  activeNav:
+    "text-[#087dca] after:absolute after:inset-x-[-12px] after:bottom-0 after:h-1 after:bg-[#087dca]",
+  menuButton:
+    "focus-ring flex h-full items-center gap-1 font-elliot text-[13px] font-medium text-[#151923] transition-colors hover:text-[#087dca] 2xl:text-[15px]",
+  popover:
+    "absolute left-1/2 top-[calc(100%+10px)] z-50 w-72 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-[0_12px_28px_rgba(16,35,70,0.15)]",
+  popoverLink:
+    "block px-4 py-3 font-elliot text-[13px] text-slate-700 transition-colors hover:bg-[#f1f7ff] hover:text-[#087dca]",
+  account:
+    "hidden items-center gap-2 font-elliot text-[12px] text-[#171b24] xl:flex 2xl:text-[14px]",
+  signOut:
+    "focus-ring grid h-8 w-8 place-items-center border-l border-[#d9dfe8] pl-2 text-[#1d2634] transition-colors hover:text-[#087dca]",
+  globe: "hidden sm:block",
+  globeLogo: "h-[30px] w-auto 2xl:h-[35px]",
+  mobileButton:
+    "focus-ring grid h-9 w-9 place-items-center text-[#1d2634] lg:hidden",
+  mobileNav: "border-t border-slate-100 bg-white px-5 py-3 sm:px-8 lg:hidden",
+  mobileLink:
+    "block rounded-md px-3 py-3 font-elliot text-sm text-slate-700 hover:bg-[#f1f7ff] hover:text-[#087dca]",
+};
+
+function WorkspaceMenu({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <div className="py-1" aria-label="Workspace links">
+      {workspaces.map((workspace) => (
+        <Link
+          key={workspace.id}
+          to={workspaceHref(workspace)}
+          onClick={onNavigate}
+          className={shellUi.popoverLink}
+        >
+          {workspace.title}
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 export default function AppShell() {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [administratorOpen, setAdministratorOpen] = useState(false);
   const { logout, user } = useAuth();
+  const closeMenus = () => {
+    setMobileOpen(false);
+    setWorkspaceOpen(false);
+    setAdministratorOpen(false);
+  };
 
-  return <div className="min-h-screen text-slate-800">
-    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 max-w-[90rem] items-center justify-between px-5 sm:px-8 lg:px-10">
-        <NavLink to="/" className="focus-ring flex items-center gap-3 rounded-xl" aria-label="DT+ Home">
-          <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-navy via-teal to-sky-500 text-xs font-extrabold text-white shadow-[0_10px_24px_rgba(21,153,160,.25)]">DT</span>
-          <span className="font-heading text-[20px] font-bold tracking-tight text-slate-900">DT<span className="text-teal">+</span></span>
-        </NavLink>
+  return (
+    <div className={shellUi.shell}>
+      <header className={shellUi.header}>
+        <div className={shellUi.headerContent}>
+          <NavLink
+            to="/"
+            end
+            onClick={closeMenus}
+            className={shellUi.logo}
+            aria-label="ES-ATP Dashboard"
+          >
+            ES-ATP
+          </NavLink>
 
-        <nav className="hidden h-full items-center gap-2 lg:flex" aria-label="Primary navigation">
-          {links.map((link) => <NavLink key={link.to} to={link.to} end={link.end} className={({ isActive }) => cn("focus-ring relative flex h-full items-center rounded-lg px-3.5 text-[13px] font-semibold transition duration-200", isActive ? "text-teal" : "text-slate-500 hover:text-slate-900")}>{({ isActive }) => <>{link.label}{isActive ? <motion.span layoutId="active-nav" transition={{ type: "spring", stiffness: 430, damping: 34 }} className="absolute bottom-0 inset-x-3.5 h-0.5 rounded-full bg-gradient-to-r from-teal to-sky-500" /> : null}</>}</NavLink>)}
-        </nav>
+          <nav className={shellUi.desktopNav} aria-label="Primary navigation">
+            <NavLink
+              to="/"
+              end
+              onClick={closeMenus}
+              className={({ isActive }) =>
+                cn(shellUi.navLink, isActive && shellUi.activeNav)
+              }
+            >
+              Dashboard
+            </NavLink>
+            <div className="relative h-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setWorkspaceOpen((open) => !open);
+                  setAdministratorOpen(false);
+                }}
+                className={cn(
+                  shellUi.menuButton,
+                  location.pathname === "/processing-pipelines" &&
+                    shellUi.activeNav,
+                )}
+                aria-expanded={workspaceOpen}
+                aria-controls="workspace-menu"
+              >
+                Workspace <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {workspaceOpen ? (
+                <div id="workspace-menu" className={shellUi.popover}>
+                  <WorkspaceMenu onNavigate={closeMenus} />
+                </div>
+              ) : null}
+            </div>
+            <div className="relative h-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdministratorOpen((open) => !open);
+                  setWorkspaceOpen(false);
+                }}
+                className={shellUi.menuButton}
+                aria-expanded={administratorOpen}
+                aria-controls="administrator-menu"
+              >
+                Administrator <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {administratorOpen ? (
+                <div id="administrator-menu" className={shellUi.popover}>
+                  <span
+                    className="block px-4 py-3 font-elliot text-[13px] text-slate-400"
+                    aria-disabled="true"
+                  >
+                    Coming soon
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </nav>
 
-        <div className="flex items-center gap-2.5">
-          <div className="hidden items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70 xl:flex"><span className="grid h-7 w-7 place-items-center rounded-lg bg-teal/10 text-teal"><UserRound className="h-3.5 w-3.5" /></span><span className="max-w-44 truncate text-[12px] font-medium text-slate-600">{user?.email}</span></div>
-          {user?.isBootstrapAdmin ? <NavLink to="/admin/users" className="focus-ring hidden items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-teal transition hover:bg-teal/5 lg:inline-flex"><ShieldCheck className="h-4 w-4" />Users</NavLink> : null}
-          <button onClick={() => void logout()} className="focus-ring grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-teal/25 hover:bg-teal/5 hover:text-teal" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
-          <button onClick={() => setMenuOpen((value) => !value)} className="focus-ring grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Toggle navigation" aria-expanded={menuOpen}>{menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button>
+          <div className="flex items-center gap-3">
+            <div className={shellUi.account} title={user?.email}>
+              <img src={userIcon} alt="" className="h-4 w-4" />
+              {getUserDisplayName(user?.displayName, user?.email)}
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className={shellUi.signOut}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+            <img src={globeLogo} alt="Globe" className={shellUi.globeLogo} />
+            <button
+              type="button"
+              onClick={() => setMobileOpen((open) => !open)}
+              className={shellUi.mobileButton}
+              aria-label="Toggle navigation"
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <AnimatePresence>{menuOpen ? <motion.nav initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden border-t border-slate-100 bg-white px-5 sm:px-8 lg:hidden" aria-label="Primary navigation"><div className="space-y-1 py-3">{links.map((link) => <NavLink key={link.to} to={link.to} end={link.end} onClick={() => setMenuOpen(false)} className={({ isActive }) => cn("block rounded-xl px-4 py-3.5 text-[13px] font-semibold", isActive ? "bg-teal/8 text-teal" : "text-slate-600 hover:bg-slate-50")}>{link.label}</NavLink>)}</div></motion.nav> : null}</AnimatePresence>
-    </header>
+        {mobileOpen ? (
+          <nav className={shellUi.mobileNav} aria-label="Mobile navigation">
+            <NavLink
+              to="/"
+              end
+              onClick={closeMenus}
+              className={shellUi.mobileLink}
+            >
+              Dashboard
+            </NavLink>
+            <p className="px-3 pb-1 pt-4 font-elliot text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+              Workspace
+            </p>
+            <WorkspaceMenu onNavigate={closeMenus} />
+            <p className="px-3 pb-3 pt-4 font-elliot text-[13px] text-slate-400">
+              Administrator — Coming soon
+            </p>
+          </nav>
+        ) : null}
+      </header>
 
-    <main className="mx-auto min-h-[calc(100vh-12rem)] max-w-[90rem] px-5 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14"><Outlet /></main>
-    <footer className="mx-auto max-w-[90rem] border-t border-slate-200/80 px-5 py-8 text-[13px] text-slate-600 sm:px-8 lg:px-10">© 2026 - Enterprise Services Applications</footer>
-  </div>;
+      <main className="mx-auto min-h-[calc(100vh-72px)] w-full max-w-none px-5 py-10 sm:px-8 sm:py-12 lg:w-[84.7%] lg:px-0 lg:py-14">
+        <Outlet />
+      </main>
+    </div>
+  );
 }

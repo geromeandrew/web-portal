@@ -2,10 +2,14 @@ name: web-portal-web
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_OKTA_CLIENT_ID: ${VITE_OKTA_CLIENT_ID:-0oa28rfcq0h2ZSAvZ0h8}
+        VITE_OKTA_ISSUER: ${VITE_OKTA_ISSUER:-https://globemfa.okta.com/oauth2/default}
     image: web-portal:local
     ports:
-      - "3000:8080"
+      - "5173:8080"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m,mode=1777

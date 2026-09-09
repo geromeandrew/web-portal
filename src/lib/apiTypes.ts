@@ -1,8 +1,7 @@
 export type UserDto = {
   id: string;
   email: string;
-  isBootstrapAdmin: boolean;
-  mustChangePassword: boolean;
+  displayName: string | null;
   createdAt: string;
 };
 
@@ -21,7 +20,8 @@ export type ApiError = {
   error: { code: string; message: string; fields?: Record<string, string> };
 };
 
-export type ProcessingPipelineStage = "inbound" | "outbound" | "processed" | "error";
+export type ProcessingPipelineStage =
+  "inbound" | "outbound" | "processed" | "error";
 
 export type ProcessingPipelineFileDto = {
   id: string;
@@ -94,11 +94,25 @@ export type ProcessingPipelineBatchExecutionDetailsDto = {
   pipelineCode: string;
   batchCycle: string;
   targetMode: "batch" | "partial";
-  sourceFiles: { expectedFileName: string; key: string; s3Uri: string; displayOrder: number }[];
-  missingFiles: { expectedFileName: string; key: string; s3Uri: string; displayOrder: number; reason: string }[];
+  sourceFiles: {
+    expectedFileName: string;
+    key: string;
+    s3Uri: string;
+    displayOrder: number;
+  }[];
+  missingFiles: {
+    expectedFileName: string;
+    key: string;
+    s3Uri: string;
+    displayOrder: number;
+    reason: string;
+  }[];
   execution: {
     stateMachine?: { status: string; type: string; stateMachineName?: string };
-    workflows?: { expectedFileName: string; stateMachine: { status: string; type: string; stateMachineName?: string } }[];
+    workflows?: {
+      expectedFileName: string;
+      stateMachine: { status: string; type: string; stateMachineName?: string };
+    }[];
   };
   canExecute: boolean;
   blockingReasons: string[];
@@ -110,8 +124,18 @@ export type ProcessingPipelineBatchRunDto = {
   runId?: string;
   stateMachineName?: string;
   sourceFiles: { expectedFileName: string; key: string; s3Uri: string }[];
-  missingFiles: { expectedFileName: string; key: string; s3Uri: string; reason: string }[];
-  startedRuns?: Array<{ runId: string; expectedFileName: string; stateMachineName: string; startedAt: string }>;
+  missingFiles: {
+    expectedFileName: string;
+    key: string;
+    s3Uri: string;
+    reason: string;
+  }[];
+  startedRuns?: Array<{
+    runId: string;
+    expectedFileName: string;
+    stateMachineName: string;
+    startedAt: string;
+  }>;
   failedFiles?: Array<{ expectedFileName: string; error: { message: string } }>;
   startedAt?: string;
 };
