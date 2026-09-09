@@ -15,7 +15,7 @@ services:
     volumes:
       - .:/app
       - web_node_modules:/app/node_modules
-    command: ["pnpm", "local", "--", "--host", "0.0.0.0"]
+    command: ["pnpm", "exec", "vite", "--mode", "development", "--host", "0.0.0.0"]
 
 volumes:
   web_node_modules:
