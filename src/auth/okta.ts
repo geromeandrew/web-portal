@@ -17,11 +17,16 @@ export const oktaConfig = {
   clientId,
   issuer: issuer.replace(/\/$/, ""),
   redirectUri: `${origin}/login/callback`,
-  postLogoutRedirectUri: `${origin}/login`,
+  postLogoutRedirectUri: `${origin}/logout`,
   scopes: ["openid", "profile", "email"],
   pkce: true,
+  storageManager: {
+    token: {
+      storageType: "sessionStorage" as const,
+      storageTypes: [],
+    },
+  },
   tokenManager: {
-    storage: "sessionStorage" as const,
     storageKey: "esatp.okta.tokens",
   },
 };

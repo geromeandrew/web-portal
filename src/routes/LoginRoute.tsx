@@ -64,7 +64,7 @@ function OktaSsoButton({
 }
 
 export default function LoginRoute() {
-  const { user, login } = useAuth();
+  const { error: authError, user, login } = useAuth();
   const location = useLocation();
   const callbackError =
     typeof location.state === "object" &&
@@ -73,12 +73,12 @@ export default function LoginRoute() {
     typeof location.state.authError === "string"
       ? location.state.authError
       : null;
-  const [error, setError] = useState<string | null>(callbackError);
+  const [error, setError] = useState<string | null>(callbackError ?? authError);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setError(callbackError);
-  }, [callbackError]);
+    setError(callbackError ?? authError);
+  }, [authError, callbackError]);
 
   if (user) return <Navigate to="/" replace />;
 

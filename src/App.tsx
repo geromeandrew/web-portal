@@ -17,6 +17,7 @@ export default function App() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/login/callback" element={<LoginCallbackRoute />} />
       <Route path="/login/complete" element={<LoginCompleteRoute />} />
+      <Route path="/logout" element={<Navigate to="/login" replace />} />
       <Route
         element={
           <RequireAuth>

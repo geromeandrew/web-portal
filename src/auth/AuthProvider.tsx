@@ -4,11 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { UserDto } from "../lib/apiTypes";
 import { apiRequest } from "../lib/apiClient";
+import { oktaConfig } from "./okta";
 
 type AuthContextValue = {
   user: UserDto | null;
@@ -60,9 +62,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(null);
   const [profileReady, setProfileReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const logoutInProgress = useRef(false);
 
   useEffect(() => {
     let active = true;
+    if (isSigningOut) {
+      // Changing this dependency invalidates any in-flight profile request so
+      // it cannot restore the user while the Okta logout redirect is pending.
+      setUser(null);
+      setProfileReady(false);
+      return () => {
+        active = false;
+      };
+    }
     if (!authState) {
       setProfileReady(false);
       return () => {
@@ -95,26 +108,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [authState, oktaAuth]);
+  }, [authState, isSigningOut, oktaAuth]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      ready: Boolean(authState) && profileReady,
+      ready: Boolean(authState) && profileReady && !isSigningOut,
       error,
       async login(originalUri = "/") {
         setError(null);
         await oktaAuth.signInWithRedirect({ originalUri });
       },
       async logout() {
+        if (logoutInProgress.current) return;
+
+        logoutInProgress.current = true;
+        setIsSigningOut(true);
         setUser(null);
         setError(null);
-        await oktaAuth.signOut({
-          postLogoutRedirectUri: `${window.location.origin}/login`,
-        });
+
+        try {
+          // Preserve the tokens only long enough for the SDK to revoke them
+          // and construct the Okta logout request. Clearing storage first
+          // ensures a redirected application cannot restore the portal session.
+          const tokens = oktaAuth.tokenManager.getTokensSync();
+          oktaAuth.tokenManager.clear();
+          const signOutOptions = {
+            accessToken: tokens.accessToken,
+            idToken: tokens.idToken,
+            postLogoutRedirectUri: oktaConfig.postLogoutRedirectUri,
+            refreshToken: tokens.refreshToken,
+            clearTokensBeforeRedirect: true,
+          };
+
+          // Okta revokes access and refresh tokens by default before ending
+          // the SSO session and redirecting to the registered logout URI.
+          try {
+            await oktaAuth.signOut(signOutOptions);
+          } catch {
+            // A token-revocation outage must not leave the Okta SSO session
+            // active. Retry the logout request without a second revocation.
+            await oktaAuth.signOut({
+              ...signOutOptions,
+              revokeAccessToken: false,
+              revokeRefreshToken: false,
+            });
+          }
+        } catch {
+          // Local credentials were already removed when possible. Let
+          // RequireAuth take the user to the login screen rather than
+          // restoring the dashboard.
+          logoutInProgress.current = false;
+          setIsSigningOut(false);
+          setError("We couldn't complete sign-out at Okta. Please try again.");
+        }
       },
     }),
-    [authState, error, oktaAuth, profileReady, user],
+    [authState, error, isSigningOut, oktaAuth, profileReady, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
