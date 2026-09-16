@@ -1,4 +1,8 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@600;700;800&family=Public+Sans:wght@400;500;600;700;800&display=swap");
+@import "@fontsource/public-sans/400.css";
+@import "@fontsource/public-sans/500.css";
+@import "@fontsource/public-sans/600.css";
+@import "@fontsource/public-sans/700.css";
+@import "@fontsource/public-sans/800.css";
 
 @tailwind base;
 @tailwind components;
@@ -7,10 +11,8 @@
 :root {
   color-scheme: light;
   font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
+    "Public Sans",
+    Arial,
     sans-serif;
   background: #f5f8fa;
   color: #17212b;
@@ -58,7 +60,7 @@ a {
 
 .font-heading,
 .portal-heading {
-  font-family: Montserrat, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Public Sans", Arial, sans-serif;
 }
 
 @layer components {

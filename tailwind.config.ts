@@ -6,19 +6,14 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          "Inter",
-          "-apple-system",
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "\"Segoe UI\"",
+          "\"Public Sans\"",
+          "Arial",
           "sans-serif",
         ],
-        heading: ["Montserrat", "Inter", "-apple-system", "BlinkMacSystemFont", "\"Segoe UI\"", "sans-serif"],
-        // FS Elliot Pro is the approved brand font. Public Sans is a legal,
-        // metrically compatible fallback until its licensed webfont kit is added.
+        heading: ["\"Public Sans\"", "Arial", "sans-serif"],
+        // Public Sans is the temporary, self-hosted substitute until a licensed
+        // FS Elliot Pro webfont kit is available.
         elliot: [
-          "\"FS Elliot Pro\"",
-          "\"FS Elliot\"",
           "\"Public Sans\"",
           "Arial",
           "sans-serif",

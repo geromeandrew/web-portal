@@ -22,7 +22,7 @@ const shellUi = {
   menuButton:
     "focus-ring flex h-full items-center gap-1 font-elliot text-[13px] font-medium text-[#151923] transition-colors hover:text-[#087dca] 2xl:text-[15px]",
   popover:
-    "absolute left-1/2 top-[calc(100%+10px)] z-50 w-72 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-[0_12px_28px_rgba(16,35,70,0.15)]",
+    "absolute left-1/2 top-[calc(100%+10px)] z-50 max-h-[calc(100vh-96px)] w-72 -translate-x-1/2 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-[0_12px_28px_rgba(16,35,70,0.15)]",
   popoverLink:
     "block px-4 py-3 font-elliot text-[13px] text-slate-700 transition-colors hover:bg-[#f1f7ff] hover:text-[#087dca]",
   account:
