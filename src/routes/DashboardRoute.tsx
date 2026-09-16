@@ -1,13 +1,13 @@
-import { FileUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { getUserFirstName } from "../lib/userDisplay";
 import {
-  workspaces,
-  workspaceHref,
+  dashboardWorkspaces,
+  dashboardWorkspaceHref,
   type WorkspaceDefinition,
 } from "../lib/workspaces";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
+import dashboardUiIcon from "../assets/dashboard-ui-icon.svg";
 
 const dashboardUi = {
   page: "relative isolate -mx-5 -my-10 min-h-[calc(100vh-72px)] overflow-hidden bg-[#f2f7fe] px-5 py-16 sm:-mx-8 sm:-my-12 sm:px-8 lg:-mx-0 lg:-my-14 lg:px-0 lg:py-16",
@@ -20,7 +20,7 @@ const dashboardUi = {
   cardHeader: "flex items-start justify-between gap-4",
   cardTitle: "font-elliot text-[15px] font-bold leading-5 text-[#121926]",
   cardDescription: "mt-1 font-elliot text-[13px] leading-[1.35] text-[#252c37]",
-  icon: "grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#f0f7ff] text-[#087dca]",
+  icon: "h-[39px] w-[39px] shrink-0",
   action:
     "focus-ring mt-auto inline-flex h-[36px] w-full items-center justify-center rounded-[5px] bg-[#087dca] px-4 font-elliot text-[11px] font-medium text-white transition-colors hover:bg-[#0674bb]",
 };
@@ -44,11 +44,9 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceDefinition }) {
           <h2 className={dashboardUi.cardTitle}>{workspace.title}</h2>
           <p className={dashboardUi.cardDescription}>{workspace.description}</p>
         </div>
-        <span className={dashboardUi.icon} aria-hidden="true">
-          <FileUp className="h-4 w-4" />
-        </span>
+        <img src={dashboardUiIcon} alt="" aria-hidden="true" className={dashboardUi.icon} />
       </div>
-      <Link to={workspaceHref(workspace)} className={dashboardUi.action}>
+      <Link to={dashboardWorkspaceHref(workspace)} className={dashboardUi.action}>
         Open workspace
       </Link>
     </article>
@@ -73,7 +71,7 @@ export default function DashboardRoute() {
           manage executions
         </p>
         <div className={dashboardUi.grid}>
-          {workspaces.map((workspace) => (
+          {dashboardWorkspaces.map((workspace) => (
             <WorkspaceCard key={workspace.id} workspace={workspace} />
           ))}
         </div>

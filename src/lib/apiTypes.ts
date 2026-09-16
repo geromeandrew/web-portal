@@ -26,6 +26,7 @@ export type ProcessingPipelineStage =
 export type ProcessingPipelineFileDto = {
   id: string;
   expectedFileName: string;
+  match?: "exact" | "glob";
   matchedFileName: string | null;
   legacyPackageName: string | null;
   jobName: string | null;
@@ -47,6 +48,13 @@ export type ProcessingPipelineFileDto = {
     databaseSchemaDestination: string | null;
     tableDestinations: string[];
   };
+};
+
+export type ProcessingPipelineUploadBatchDto = {
+  id: string;
+  createdAt: string;
+  uploadedBy: string | null;
+  files: { expectedFileName: string; originalName: string; readAt: string }[];
 };
 
 export type ProcessingPipelineFileListDto = {

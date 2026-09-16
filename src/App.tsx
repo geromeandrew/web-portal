@@ -39,7 +39,7 @@ export default function App() {
           path="/memo"
           element={<Navigate to="/memo/file-upload" replace />}
         />
-        <Route path="/memo/:section" element={<MemoRoute />} />
+        <Route path="/memo/file-upload" element={<MemoRoute />} />
         <Route path="/aprm" element={<AprmRoute />} />
         <Route path="/aprm/:area" element={<AprmRoute />} />
         <Route

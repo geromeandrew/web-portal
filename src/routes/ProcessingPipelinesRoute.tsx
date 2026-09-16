@@ -27,6 +27,7 @@ export default function ProcessingPipelinesRoute() {
 
 function GenericProcessingPipelinesRoute({ workspaceId }: { workspaceId: string | null }) {
   const { user } = useAuth();
+  const workspace = workspaces.find((item) => item.id === workspaceId);
   const [activeTab, setActiveTab] = useState<"files" | "batch">("files");
   const [pipelineCode, setPipelineCode] = useState("");
   const [stage, setStage] = useState<ProcessingPipelineStage>("inbound");
@@ -46,6 +47,7 @@ function GenericProcessingPipelinesRoute({ workspaceId }: { workspaceId: string 
   const fileInput = useRef<HTMLInputElement>(null);
   const timers = useRef<number[]>([]);
   const isAdmin = Boolean(user);
+  const isDedicatedWorkspace = Boolean(workspaceId);
 
   const loadFiles = useCallback(async () => {
     if (!pipelineCode) return;
@@ -132,11 +134,11 @@ function GenericProcessingPipelinesRoute({ workspaceId }: { workspaceId: string 
   const pipeline = catalog.pipelines.find((item) => item.code === pipelineCode);
   return <div className="space-y-8 pb-4">
     <input ref={fileInput} type="file" accept=".xlsx,.xls,.csv,.txt" className="sr-only" onChange={(event) => { void uploadFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
-    <PageHeader eyebrow="Processing Pipelines" title="Pipeline operations" description="Inspect inbound source files, manage uploads, and start mapped workflows with clear readiness checks." />
+    <PageHeader eyebrow="Processing Pipelines" title={isDedicatedWorkspace ? workspace?.title ?? "Pipeline workspace" : "Pipeline operations"} description={isDedicatedWorkspace ? workspace?.description ?? "Inspect the mapped source files and workflow readiness for this workspace." : "Inspect inbound source files, manage uploads, and start mapped workflows with clear readiness checks."} />
     <section className="portal-panel overflow-hidden">
       <div className="border-b border-slate-100 bg-gradient-to-r from-teal/[0.05] via-sky-50/70 to-white px-7 pt-7 sm:px-10 sm:pt-8">
         <div className="portal-tabs w-fit" role="tablist" aria-label="Processing pipeline workspace"><button role="tab" aria-selected={activeTab === "files"} onClick={() => setActiveTab("files")} className={`portal-tab ${activeTab === "files" ? "portal-tab-active" : ""}`}>Pipeline files</button><button role="tab" aria-selected={activeTab === "batch"} onClick={() => setActiveTab("batch")} className={`portal-tab ${activeTab === "batch" ? "portal-tab-active" : ""}`}>Batch executions</button></div>
-        <div className="flex flex-col gap-4 py-6 lg:flex-row lg:items-end lg:justify-between"><div className="grid flex-1 gap-4 sm:grid-cols-2 lg:max-w-2xl"><label className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-500">Pipeline<select value={pipelineCode} onChange={(event) => setPipelineCode(event.target.value)} className="portal-input mt-2 block w-full"><option value="">Select pipeline</option>{catalog.pipelines.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label><label className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-500">Stage<select value={stage} onChange={(event) => setStage(event.target.value as ProcessingPipelineStage)} className="portal-input mt-2 block w-full">{stages.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label></div><button onClick={() => void loadFiles()} disabled={!pipelineCode || loadingFiles} className="focus-ring portal-button-secondary"><RefreshCcw className={`h-4 w-4 ${loadingFiles ? "animate-spin" : ""}`} />Refresh files</button></div>
+        <div className="flex flex-col gap-4 py-6 lg:flex-row lg:items-end lg:justify-between"><div className="grid flex-1 gap-4 sm:grid-cols-2 lg:max-w-2xl"><label className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-500">Pipeline<select value={pipelineCode} disabled={isDedicatedWorkspace} onChange={(event) => setPipelineCode(event.target.value)} className="portal-input mt-2 block w-full disabled:cursor-not-allowed disabled:opacity-75"><option value="">Select pipeline</option>{catalog.pipelines.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label><label className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-500">Stage<select value={stage} onChange={(event) => setStage(event.target.value as ProcessingPipelineStage)} className="portal-input mt-2 block w-full">{stages.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label></div><button onClick={() => void loadFiles()} disabled={!pipelineCode || loadingFiles} className="focus-ring portal-button-secondary"><RefreshCcw className={`h-4 w-4 ${loadingFiles ? "animate-spin" : ""}`} />Refresh files</button></div>
       </div>
       {notice ? <div className="portal-alert mx-7 mt-7 border-rose-200 bg-rose-50 text-rose-700 sm:mx-10" role="alert"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{notice}</div> : null}
       <div className="p-7 sm:p-10">{!pipelineCode ? <EmptyState /> : activeTab === "files" ? <FilesTab files={files} rows={rows} pipeline={pipeline?.label ?? pipelineCode} stage={stage} loading={loadingFiles} configured={configured} uploads={uploads} isAdmin={isAdmin} runs={runs} onView={viewFile} onUpload={(file) => { pendingUpload.current = file; fileInput.current?.click(); }} onExecute={prepareSingle} /> : <BatchTab batchCycles={batchCycles} batchCycle={batchCycle} onBatchCycleChange={setBatchCycle} isAdmin={isAdmin} loading={loadingBatch} details={batchDetails} onRefresh={() => void loadBatchDetails()} onExecute={() => batchDetails && setPendingAction({ kind: "batch", details: batchDetails })} />}</div>

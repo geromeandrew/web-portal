@@ -72,17 +72,3 @@ export const allocationRows = [
 
 export const jvHeaders = ["Batch_Number", "Doc_Date", "Posting_Date", "DocType", "Company_Code", "Currency", "Date", "Fiscal_Period", "Document_Number", "Text", "Posting_Key", "Special_GL_Indicator"];
 export const jvRows = Array.from({ length: 18 }, (_, index) => ["1", "06/30/2026", "06/30/2026", "SA", "GLOB", "PHP", "06/30/2026", "06", "TOP-UP", "06/26 EG REVS", index % 4 === 0 ? "50" : "40", ""]);
-
-export const memoHeaders = ["Counter", "Counter Line Item", "Approval Status", "Reference", "Vendor GL Act", "Amount In Doc Curr", "Posting Key", "Document Header Text", "Disabled Line Item", "Disabled Cour"];
-export const memoErrors = [
-  ["6196001008", "1", "Draft", "105314", "0000060971", "325,248.00", "31", "RFP53384", "false", "false"],
-  ["6196001008", "2", "Draft", "105314", "0000627011", "125,633.00", "40", "RFP53384", "false", "false"],
-  ["6196001008", "3", "Draft", "105314", "0000627013", "199,615.00", "40", "RFP53384", "false", "false"],
-  ["6196000993", "1", "Draft", "104776", "0000060971", "19,167.00", "31", "RFP53197", "false", "false"],
-  ["6196000993", "2", "Draft", "104776", "0000627009", "1,620.00", "40", "RFP53197", "false", "false"],
-  ["6196000993", "3", "Draft", "104776", "0000627013", "8,030.00", "40", "RFP53197", "false", "false"],
-  ["6196000993", "4", "Draft", "104776", "0000627014", "9,517.00", "40", "RFP53197", "false", "false"],
-  ["6196000988", "1", "Draft", "105155", "0000060971", "404,719.00", "31", "RFP53384", "false", "false"],
-  ["6196000988", "2", "Draft", "105155", "0000627013", "276,360.00", "40", "RFP53384", "false", "false"],
-  ["6196000988", "3", "Draft", "105155", "0000627013", "128,359.00", "40", "RFP53384", "false", "false"],
-];

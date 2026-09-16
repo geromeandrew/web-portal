@@ -1,7 +1,9 @@
-import { ArrowLeft, ArrowRight, FileCog, Mic2 } from "lucide-react";
+import { ArrowRight, FileCog, Mic2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import MappedUploadWorkspace from "../components/MappedUploadWorkspace";
 import PageHeader from "../components/PageHeader";
 import WorkflowUpload from "../components/WorkflowUpload";
+import { workspaces } from "../lib/workspaces";
 
 const areas = [
   { id: "content", title: "APRM Content", description: "APRM Content features file upload.", icon: FileCog },
@@ -12,7 +14,8 @@ export default function AprmRoute() {
   const { area } = useParams();
   const selected = areas.find((item) => item.id === area);
 
-  if (selected) return <div className="space-y-8 pb-4"><PageHeader eyebrow="APRM" title={selected.title} description={selected.description}><Link to="/aprm" className="focus-ring inline-flex items-center gap-2 rounded-lg text-[13px] font-semibold text-teal"><ArrowLeft className="h-4 w-4" />Back to APRM</Link></PageHeader><WorkflowUpload title={selected.title} description={selected.description} acceptLabel="Supported business files" /></div>;
+  if (selected?.id === "content") return <MappedUploadWorkspace workspace={workspaces.find((workspace) => workspace.id === "aprm-content")!} history="flat" />;
+  if (selected) return <div className="space-y-8 pb-4"><WorkflowUpload title={selected.title} description={selected.description} acceptLabel="Supported business files" /></div>;
 
   return <div className="space-y-10 pb-4">
     <PageHeader eyebrow="APRM" title="APRM workflows" description="Select the Content or Voice workflow to upload the corresponding source files." />
