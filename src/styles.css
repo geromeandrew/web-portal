@@ -1,8 +1,9 @@
-@import "@fontsource/public-sans/400.css";
-@import "@fontsource/public-sans/500.css";
-@import "@fontsource/public-sans/600.css";
-@import "@fontsource/public-sans/700.css";
-@import "@fontsource/public-sans/800.css";
+@import "@fontsource/nunito-sans/400.css";
+@import "@fontsource/nunito-sans/500.css";
+@import "@fontsource/nunito-sans/600.css";
+@import "@fontsource/nunito-sans/700.css";
+@import "@fontsource/nunito-sans/800.css";
+@import "@fontsource/nunito-sans/900.css";
 
 @tailwind base;
 @tailwind components;
@@ -10,10 +11,7 @@
 
 :root {
   color-scheme: light;
-  font-family:
-    "Public Sans",
-    Arial,
-    sans-serif;
+  font-family: "Nunito Sans", Arial, sans-serif;
   background: #f5f8fa;
   color: #17212b;
 }
@@ -59,13 +57,15 @@ a {
 }
 
 .font-heading,
-.portal-heading {
-  font-family: "Public Sans", Arial, sans-serif;
+.portal-heading,
+.font-elliot {
+  font-family: "Nunito Sans", Arial, sans-serif;
+  font-synthesis: none;
 }
 
 @layer components {
   .portal-panel {
-    @apply rounded-[1.5rem] bg-white shadow-[0_18px_50px_rgba(27,46,110,0.08)] ring-1 ring-slate-200/70;
+    @apply overflow-hidden rounded-[8px] bg-white shadow-[0_2px_8px_rgba(20,47,89,0.08)] ring-1 ring-[#e4eaf2];
   }
 
   .portal-page-header {
@@ -81,27 +81,27 @@ a {
   }
 
   .portal-tabs {
-    @apply flex gap-1.5 overflow-x-auto rounded-[14px] bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/70 backdrop-blur;
+    @apply flex gap-0.5 overflow-x-auto;
   }
 
   .portal-tab {
-    @apply focus-ring shrink-0 rounded-[10px] px-4 py-2.5 text-[13px] font-medium text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-slate-800;
+    @apply focus-ring shrink-0 rounded-t-[9px] bg-[#d6e1ed] px-4 py-2 font-elliot text-[11px] text-[#6281a7] transition hover:bg-[#cbd8e5];
   }
 
   .portal-tab-active {
-    @apply bg-white text-teal shadow-sm ring-1 ring-teal/10;
+    @apply bg-white font-bold text-[#171b24] shadow-none ring-0;
   }
 
   .portal-button-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-teal to-sky-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-teal/20 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal/25 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-0 items-center justify-center gap-2 rounded-[5px] bg-[#087dca] px-4 py-2.5 font-elliot text-[12px] font-semibold text-white transition hover:bg-[#066caf] disabled:cursor-not-allowed disabled:opacity-45;
   }
 
   .portal-button-secondary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[11px] bg-white px-4 py-2 text-[13px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-px hover:text-teal hover:ring-teal/30;
+    @apply inline-flex min-h-0 items-center justify-center gap-2 rounded-[5px] border border-[#087dca] bg-white px-4 py-2 font-elliot text-[12px] text-[#087dca] transition hover:bg-[#f6f9fd] disabled:cursor-not-allowed disabled:opacity-45;
   }
 
   .portal-input {
-    @apply h-11 rounded-[11px] border-0 bg-slate-100/90 px-3.5 text-[13px] text-slate-800 outline-none ring-1 ring-transparent transition placeholder:text-slate-400 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-teal/25;
+    @apply h-[35px] rounded-[5px] border border-[#b8c1cf] bg-white px-3 font-elliot text-[12px] text-[#5c6675] outline-none transition focus:ring-2 focus:ring-[#a8d6ff];
   }
 
   .portal-status {
@@ -116,7 +116,6 @@ a {
     @apply font-heading text-xl font-bold tracking-tight text-slate-900 sm:text-2xl;
   }
 }
-
 
 @media (prefers-reduced-motion: reduce) {
   *,

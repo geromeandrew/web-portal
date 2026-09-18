@@ -10,7 +10,7 @@ describe("workspace registry", () => {
     ]));
     expect(workspaceHref(workspaces[0])).toBe("/processing-pipelines?workspace=bss-bill-cycle-globe");
     expect(workspaceHref(workspaces.find((workspace) => workspace.id === "aprm-content")!)).toBe("/aprm/content");
-    expect(workspaceHref(workspaces.find((workspace) => workspace.id === "prepaid-re-class")!)).toBe("/processing-pipelines?workspace=prepaid-re-class");
+    expect(workspaceHref(workspaces.find((workspace) => workspace.id === "prepaid-re-class")!)).toBe("/prepaid/file-upload");
     expect(dashboardWorkspaces).toHaveLength(6);
     expect(dashboardWorkspaceHref(dashboardWorkspaces.at(-1)!)).toBe("/prepaid/file-upload");
   });

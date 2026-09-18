@@ -14,6 +14,8 @@ export type PipelineOption = {
   label: string;
 };
 
+export const prepaidWorkspaceHref = "/prepaid/file-upload";
+
 export const workspaces: readonly WorkspaceDefinition[] = [
   {
     id: "bss-bill-cycle-globe",
@@ -129,9 +131,9 @@ export const workspaces: readonly WorkspaceDefinition[] = [
     id: "prepaid-re-class",
     title: "Prepaid Re-Class",
     description: "Ad-hoc workflow for importing, reviewing, and applying prepaid revenue reclassifications",
-    kind: "pipeline",
+    kind: "route",
+    to: prepaidWorkspaceHref,
     pipelineTerms: ["prepaid", "reclass"],
-    dashboardHref: "/prepaid/file-upload",
   },
 ];
 

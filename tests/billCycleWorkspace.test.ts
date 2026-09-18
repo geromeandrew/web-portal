@@ -20,10 +20,11 @@ describe("bill-cycle workspace data", () => {
       file("cycle-08.xlsx", "08", "2026-09-01T00:00:00.000Z"),
       file("cycle-11-b.xlsx", "11", "2026-09-03T00:00:00.000Z"),
       file("cycle-11-a.xlsx", "11", "2026-09-02T00:00:00.000Z"),
+      { ...file("308. Billed Adjustments Monthly Summary Report_I_06.XLSX", "06"), stepFunction: null },
       { ...file("unmapped.xlsx", "00"), stepFunction: null },
     ]);
 
-    expect(groups.map((group) => group.cycle)).toEqual(["11", "08"]);
+    expect(groups.map((group) => group.cycle)).toEqual(["11", "08", "06"]);
     expect(groups[0].latestUploadAt).toBe("2026-09-03T00:00:00.000Z");
     expect(groups[0].files.map((item) => item.expectedFileName)).toEqual(["cycle-11-a.xlsx", "cycle-11-b.xlsx"]);
     expect(formatBillCycleUploadDate(groups[0].latestUploadAt)).toBe("Sep 3, 2026");

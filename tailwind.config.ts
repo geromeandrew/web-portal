@@ -6,15 +6,15 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          "\"Public Sans\"",
+          "\"Nunito Sans\"",
           "Arial",
           "sans-serif",
         ],
-        heading: ["\"Public Sans\"", "Arial", "sans-serif"],
-        // Public Sans is the temporary, self-hosted substitute until a licensed
-        // FS Elliot Pro webfont kit is available.
+        heading: ["\"Nunito Sans\"", "Arial", "sans-serif"],
+        // FS Elliot Pro is licensed. Nunito Sans is the self-hosted, open
+        // substitute selected for its broad humanist forms and heavy weights.
         elliot: [
-          "\"Public Sans\"",
+          "\"Nunito Sans\"",
           "Arial",
           "sans-serif",
         ],

@@ -70,6 +70,9 @@ describe("AppShell", () => {
         'a[href="/processing-pipelines?workspace=aprm-voice-accrual"]',
       )?.textContent,
     ).toBe("APRM Voice - Accrual");
+    expect(
+      container.querySelector('a[href="/prepaid/file-upload"]')?.textContent,
+    ).toBe("Prepaid Re-Class");
 
     const administratorButton = Array.from(
       container.querySelectorAll("button"),

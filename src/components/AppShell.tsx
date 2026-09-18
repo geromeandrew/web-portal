@@ -13,7 +13,7 @@ const shellUi = {
   header: "sticky top-0 z-40 border-b border-[#edf1f7] bg-white",
   headerContent:
     "mx-auto flex h-[72px] w-full max-w-none items-center justify-between px-5 sm:px-8 lg:w-[84.7%] lg:px-0",
-  logo: "focus-ring rounded-md font-elliot text-[21px] font-bold tracking-[-0.045em] text-[#244797] 2xl:text-[24px]",
+  logo: "focus-ring inline-block origin-left rounded-md font-elliot text-[21px] font-extrabold tracking-[0.015em] text-[#244797] 2xl:text-[24px]",
   desktopNav: "hidden h-full items-center gap-7 lg:flex",
   navLink:
     "focus-ring relative flex h-full items-center font-elliot text-[13px] font-medium text-[#151923] transition-colors hover:text-[#087dca] 2xl:text-[15px]",
@@ -30,7 +30,7 @@ const shellUi = {
   signOut:
     "focus-ring grid h-8 w-8 place-items-center border-l border-[#d9dfe8] pl-2 text-[#1d2634] transition-colors hover:text-[#087dca]",
   globe: "hidden sm:block",
-  globeLogo: "h-[30px] w-auto 2xl:h-[35px]",
+  globeLogo: "ml-1 h-[30px] w-auto 2xl:h-[35px]",
   mobileButton:
     "focus-ring grid h-9 w-9 place-items-center text-[#1d2634] lg:hidden",
   mobileNav: "border-t border-slate-100 bg-white px-5 py-3 sm:px-8 lg:hidden",
@@ -101,7 +101,8 @@ export default function AppShell() {
                 }}
                 className={cn(
                   shellUi.menuButton,
-                  location.pathname === "/processing-pipelines" &&
+                  (location.pathname === "/processing-pipelines" ||
+                    location.pathname.startsWith("/prepaid")) &&
                     shellUi.activeNav,
                 )}
                 aria-expanded={workspaceOpen}
