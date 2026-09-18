@@ -2,8 +2,6 @@ import { ArrowRight, FileCog, Mic2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import MappedUploadWorkspace from "../components/MappedUploadWorkspace";
 import PageHeader from "../components/PageHeader";
-import WorkspaceShell from "../components/WorkspaceShell";
-import WorkflowUpload from "../components/WorkflowUpload";
 import { workspaces } from "../lib/workspaces";
 
 const areas = [
@@ -36,15 +34,15 @@ export default function AprmRoute() {
     );
   if (selected)
     return (
-      <WorkspaceShell title={selected.title} description={selected.description}>
-        <div className="mt-12 2xl:mt-14">
-          <WorkflowUpload
-            title={selected.title}
-            description={selected.description}
-            acceptLabel="Supported business files"
-          />
-        </div>
-      </WorkspaceShell>
+      <div className="space-y-10 pb-4">
+        <PageHeader eyebrow="APRM" title="APRM Voice" description="Select the processing pipeline for the source files you need to upload." />
+        <section className="grid gap-6 sm:grid-cols-2">
+          {(["aprm-voice-accrual", "aprm-voice-delta"] as const).map((id) => {
+            const workspace = workspaces.find((item) => item.id === id)!;
+            return <Link key={id} to={`/processing-pipelines?workspace=${id}`} className="portal-panel block p-8 transition hover:ring-2 hover:ring-teal/30"><h2 className="font-heading text-xl font-bold text-slate-900">{workspace.title}</h2><p className="mt-3 text-sm leading-6 text-slate-500">{workspace.description}</p><span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-teal">Open upload workspace <ArrowRight className="h-4 w-4" /></span></Link>;
+          })}
+        </section>
+      </div>
     );
 
   return (
