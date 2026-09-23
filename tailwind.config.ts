@@ -6,20 +6,15 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          "Inter",
-          "-apple-system",
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "\"Segoe UI\"",
+          "\"Nunito Sans\"",
+          "Arial",
           "sans-serif",
         ],
-        heading: ["Montserrat", "Inter", "-apple-system", "BlinkMacSystemFont", "\"Segoe UI\"", "sans-serif"],
-        // FS Elliot Pro is the approved brand font. Public Sans is a legal,
-        // metrically compatible fallback until its licensed webfont kit is added.
+        heading: ["\"Nunito Sans\"", "Arial", "sans-serif"],
+        // FS Elliot Pro is licensed. Nunito Sans is the self-hosted, open
+        // substitute selected for its broad humanist forms and heavy weights.
         elliot: [
-          "\"FS Elliot Pro\"",
-          "\"FS Elliot\"",
-          "\"Public Sans\"",
+          "\"Nunito Sans\"",
           "Arial",
           "sans-serif",
         ],

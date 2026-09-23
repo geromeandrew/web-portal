@@ -14,7 +14,12 @@ export function groupFilesByBillCycle(files: readonly ProcessingPipelineFileDto[
   const groups = new Map<string, ProcessingPipelineFileDto[]>();
 
   for (const file of files) {
-    const cycle = file.stepFunction?.batchCycle;
+    // Innove has the same bill-cycle file naming convention but no Step
+    // Functions mapping. A missing execution mapping must not hide a valid
+    // upload requirement from the Bill Cycle workspace.
+    const cycle =
+      file.stepFunction?.batchCycle ??
+      file.expectedFileName.match(/_(\d{2})(?=\.[^.]+$)/)?.[1];
     if (!cycle) continue;
     groups.set(cycle, [...(groups.get(cycle) ?? []), file]);
   }

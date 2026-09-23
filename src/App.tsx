@@ -10,6 +10,7 @@ import ProcessingPipelineFileViewRoute from "./routes/ProcessingPipelineFileView
 import ProcessingPipelinesRoute from "./routes/ProcessingPipelinesRoute";
 import LoginCallbackRoute from "./routes/LoginCallbackRoute";
 import LoginCompleteRoute from "./routes/LoginCompleteRoute";
+import { prepaidWorkspaceHref } from "./lib/workspaces";
 
 export default function App() {
   return (
@@ -28,7 +29,7 @@ export default function App() {
         <Route path="/" element={<DashboardRoute />} />
         <Route
           path="/prepaid"
-          element={<Navigate to="/prepaid/file-upload" replace />}
+          element={<Navigate to={prepaidWorkspaceHref} replace />}
         />
         <Route path="/prepaid/:section" element={<PrepaidRoute />} />
         <Route
@@ -39,7 +40,7 @@ export default function App() {
           path="/memo"
           element={<Navigate to="/memo/file-upload" replace />}
         />
-        <Route path="/memo/:section" element={<MemoRoute />} />
+        <Route path="/memo/file-upload" element={<MemoRoute />} />
         <Route path="/aprm" element={<AprmRoute />} />
         <Route path="/aprm/:area" element={<AprmRoute />} />
         <Route

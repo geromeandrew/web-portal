@@ -112,8 +112,13 @@ export async function downloadApiFile(path: string, filename: string) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.style.display = "none";
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Give the browser a turn to begin resolving the blob URL before releasing
+  // it. Revoking it synchronously can cancel downloads in some browsers.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export async function fetchApiFile(path: string) {

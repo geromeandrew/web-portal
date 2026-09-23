@@ -1,4 +1,4 @@
-import { apiRequest, fetchApiFile, setAccessTokenProviderForTests } from "../src/lib/apiClient";
+import { apiRequest, downloadApiFile, fetchApiFile, setAccessTokenProviderForTests } from "../src/lib/apiClient";
 import { setOktaAuthEnabledForTests } from "../src/auth/authMode";
 
 describe("Processing Pipeline file client", () => {
@@ -17,6 +17,28 @@ describe("Processing Pipeline file client", () => {
     );
     expect(file.contentType).toBe("text/plain");
     expect(file.blob.size).toBeGreaterThan(0);
+  });
+
+  it("keeps a downloaded blob URL alive until the browser has started the download", async () => {
+    setOktaAuthEnabledForTests(false);
+    vi.useFakeTimers();
+    const createObjectURL = vi.fn().mockReturnValue("blob:download");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("report", { headers: { "content-type": "text/csv" } })));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      expect(document.body.contains(this)).toBe(true);
+      expect(this.download).toBe("report.csv");
+    });
+
+    await downloadApiFile("/workflows/prepaid/report.csv", "report.csv");
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runOnlyPendingTimers();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:download");
+    vi.useRealTimers();
   });
 
   it("renews the Okta token once after an API 401", async () => {

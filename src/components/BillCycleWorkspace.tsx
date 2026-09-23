@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, ChevronRight, CloudUpload, FileText, LoaderCircle, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, FileText, LoaderCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../lib/apiClient";
 import type { ProcessingPipelineCatalogDto, ProcessingPipelineFileDto, ProcessingPipelineFileListDto } from "../lib/apiTypes";
@@ -6,6 +6,9 @@ import { formatBillCycleUploadDate, groupFilesByBillCycle, validateBillCycleUplo
 import { resolveWorkspacePipelineCode, type WorkspaceDefinition } from "../lib/workspaces";
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
+import uploadFilesIcon from "../assets/upload-files-icon.svg";
+import sheetsIcon from "../assets/sheets-icon.svg";
+import { EmptyActivityState } from "./EmptyActivityState";
 
 const workspaceUi = {
   page: "relative isolate -mx-5 -my-10 min-h-[calc(100vh-72px)] overflow-hidden bg-[#f2f7fe] px-5 py-11 sm:-mx-8 sm:-my-12 sm:px-8 sm:py-12 lg:-mx-0 lg:-my-14 lg:px-0 lg:py-8",
@@ -195,7 +198,7 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
               onDrop={(event) => { event.preventDefault(); setDragging(false); void uploadFiles(event.dataTransfer.files); }}
               className={`${workspaceUi.dropZone} ${dragging ? "border-[#087dca] bg-[#eef8ff]" : ""} disabled:cursor-not-allowed disabled:opacity-55`}
             >
-              {uploadProgress && !uploadProgress.complete && !uploadProgress.error ? <LoaderCircle className="h-10 w-10 animate-spin text-[#4788f7] 2xl:h-14 2xl:w-14" /> : <CloudUpload className="h-11 w-11 fill-[#4788f7] text-[#4788f7] 2xl:h-14 2xl:w-14" />}
+              {uploadProgress && !uploadProgress.complete && !uploadProgress.error ? <LoaderCircle className="h-10 w-10 animate-spin text-[#4788f7] 2xl:h-14 2xl:w-14" /> : <img src={uploadFilesIcon} alt="" aria-hidden="true" className="h-10 w-auto 2xl:h-14" />}
               <span className="mt-3 font-elliot text-[11px] font-bold text-[#087dca] 2xl:mt-4 2xl:text-[13px]">{uploadProgress && !uploadProgress.complete && !uploadProgress.error ? `Uploading ${uploadProgress.completed} of ${uploadProgress.total}` : "Drop files here"}</span>
               <span className="font-elliot text-[11px] text-[#087dca] 2xl:text-[13px]">or click to browse your computer</span>
             </button>
@@ -215,7 +218,7 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
               </label>
             </div>
             <div className={workspaceUi.activityBody}>
-              <table className="w-full min-w-[600px] table-fixed border-collapse text-left">
+              {!loading && (!configured || !visibleCycles.length) ? <EmptyActivityState message={!configured ? "No file mapping is configured for this workspace." : filterCycle === "all" ? undefined : "No uploaded files match the selected bill cycle."} /> : <table className="w-full min-w-[600px] table-fixed border-collapse text-left">
                 <colgroup>
                   <col className="w-[28%]" />
                   <col className="w-[28%]" />
@@ -228,7 +231,7 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
                 <tbody>
                   {loading ? <tr><td colSpan={6} className="px-7 py-10 text-center"><LoaderCircle className="mx-auto h-5 w-5 animate-spin text-[#087dca]" /></td></tr> : !configured ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No file mapping is configured for this workspace.</td></tr> : !visibleCycles.length ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No bill-cycle activity is available.</td></tr> : visibleCycles.map((group) => <ActivityRow key={group.cycle} group={group} expanded={expandedCycles.has(group.cycle)} onToggle={() => setExpandedCycles((current) => { const next = new Set(current); next.has(group.cycle) ? next.delete(group.cycle) : next.add(group.cycle); return next; })} />)}
                 </tbody>
-              </table>
+              </table>}
             </div>
             </section>
           </div>
@@ -253,7 +256,7 @@ function CycleFileDetails({ files }: { files: readonly ProcessingPipelineFileDto
   return <div className="overflow-hidden rounded-[5px] border border-[#dce3ed] bg-white">
     <div className="divide-y divide-[#e6ebf2]">
       {files.map((file) => <div key={file.id} style={{ gridTemplateColumns: expandedFileGridColumns }} className="grid min-h-[36px] items-center px-3 font-elliot text-[11px] text-[#1f2937] 2xl:min-h-[44px] 2xl:px-4 2xl:text-[13px]">
-        <div className="flex min-w-0 items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-[#16b36f]" /><span className="truncate">{file.matchedFileName ?? file.expectedFileName}</span></div>
+        <div className="flex min-w-0 items-center gap-2"><img src={sheetsIcon} alt="" aria-hidden="true" className="h-3.5 w-auto shrink-0" /><span className="truncate">{file.matchedFileName ?? file.expectedFileName}</span></div>
         <span className={file.availability === "present" ? "font-medium text-[#17ad6b]" : "text-[#8b96a6]"}>{file.availability === "present" ? "✓ Read" : "—"}</span>
         <span className="text-[#8b96a6]">—</span><span className="text-[#8b96a6]">—</span>
         <button type="button" disabled title="Removing pipeline files is not available through the current API." aria-label={`Remove ${file.expectedFileName}`} className="grid h-6 w-6 place-items-center rounded text-[#1689df] disabled:cursor-not-allowed"><Trash2 className="h-3.5 w-3.5" /></button>
