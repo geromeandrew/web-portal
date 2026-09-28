@@ -34,6 +34,8 @@ export type ProcessingPipelineFileDto = {
   key: string | null;
   size: number | null;
   lastModified: string | null;
+  uploadedAt?: string | null;
+  uploadedBy?: string | null;
   stepFunction?: {
     stateMachineName: string;
     batchCycle: string | null;
@@ -54,7 +56,7 @@ export type ProcessingPipelineUploadBatchDto = {
   id: string;
   createdAt: string;
   uploadedBy: string | null;
-  files: { expectedFileName: string; originalName: string; readAt: string }[];
+  files: { expectedFileName: string; originalName: string; objectKey: string; readAt: string }[];
 };
 
 export type ProcessingPipelineFileListDto = {

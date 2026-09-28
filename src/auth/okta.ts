@@ -3,13 +3,11 @@ import { configureAccessTokenProvider } from "../lib/apiClient";
 
 const origin = window.location.origin;
 const clientId = import.meta.env.VITE_OKTA_CLIENT_ID;
-const issuer =
-  import.meta.env.VITE_OKTA_ISSUER ||
-  "https://globemfa.okta.com/oauth2/default";
+const issuer = import.meta.env.VITE_OKTA_ISSUER;
 
-if (!clientId) {
+if (!clientId || !issuer) {
   throw new Error(
-    "Missing VITE_OKTA_CLIENT_ID. Set it in .env for pnpm local or in the EKS build configuration.",
+    "Missing VITE_OKTA_CLIENT_ID or VITE_OKTA_ISSUER. Set both in .env for pnpm local or in the EKS build configuration.",
   );
 }
 

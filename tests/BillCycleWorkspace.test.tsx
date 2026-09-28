@@ -58,7 +58,7 @@ describe("BillCycleWorkspace", () => {
     expect(container.textContent).toContain("BSS Bill Cycle - Globe");
     expect(container.textContent).toContain("Bill Cycle 11");
     expect(container.textContent).toContain("Sep 3, 2026");
-    expect(container.textContent).toContain("—");
+    expect(container.textContent).toContain("-");
 
     const select = container.querySelector("#bill-cycle-upload") as HTMLSelectElement;
     await act(async () => {
@@ -73,6 +73,53 @@ describe("BillCycleWorkspace", () => {
     await act(async () => cycleToggle.click());
 
     expect(container.textContent).toContain("✓ Read");
-    expect(container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]')).toHaveProperty("disabled", true);
+    expect(container.textContent).toContain("8:00:00 AM");
+    expect(container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]')).toHaveProperty("disabled", false);
+  });
+
+  it("sorts selectors ascending and moves an uploaded cycle to the top expanded", async () => {
+    let cycle24Uploaded = false;
+    const cycle24 = {
+      id: "cycle-24", expectedFileName: "cycle-24.xlsx", matchedFileName: null, legacyPackageName: null, jobName: null, availability: "missing" as const, key: null, size: null, lastModified: null, stepFunction: { stateMachineName: "bill-cycle", batchCycle: "24", executionInput: {} },
+    };
+    api.apiRequest.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === "/processing-pipelines") return Promise.resolve({ pipelines: [{ code: "globe-bss", label: "BSS Bill Cycle - Globe" }] });
+      if (path === "/processing-pipelines/globe-bss/files" && options?.method === "POST") {
+        cycle24Uploaded = true;
+        return Promise.resolve({});
+      }
+      if (path === "/processing-pipelines/globe-bss/files") {
+        const refreshedCycle24 = cycle24Uploaded
+          ? { ...cycle24, matchedFileName: "cycle-24.xlsx", availability: "present" as const, key: "cycle-24", size: 24, lastModified: "2026-09-04T00:00:00.000Z" }
+          : cycle24;
+        return Promise.resolve({ configured: true, files: [...files, refreshedCycle24] });
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+
+    await act(async () => {
+      root.render(<BillCycleWorkspace workspace={workspace} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const select = container.querySelector("#bill-cycle-upload") as HTMLSelectElement;
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "11", "24"]);
+    await act(async () => {
+      select.value = "24";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["cycle 24"], "cycle-24.xlsx")] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const activityRows = Array.from(container.querySelectorAll("tbody > tr"));
+    expect(activityRows[0].textContent).toContain("Bill Cycle 24");
+    expect(activityRows[1].textContent).toContain("Read");
   });
 });
