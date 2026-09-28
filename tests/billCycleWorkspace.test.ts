@@ -1,5 +1,5 @@
 import type { ProcessingPipelineFileDto } from "../src/lib/apiTypes";
-import { formatBillCycleUploadDate, groupFilesByBillCycle, validateBillCycleUpload } from "../src/lib/billCycleWorkspace";
+import { formatBillCycleUploadDate, groupFilesByBillCycle, sortBillCyclesAscending, validateBillCycleUpload } from "../src/lib/billCycleWorkspace";
 
 const file = (name: string, cycle: string, lastModified: string | null = null): ProcessingPipelineFileDto => ({
   id: `${cycle}-${name}`,
@@ -15,19 +15,21 @@ const file = (name: string, cycle: string, lastModified: string | null = null): 
 });
 
 describe("bill-cycle workspace data", () => {
-  it("groups files by cycle, sorts recent cycles first, and uses the newest upload", () => {
+  it("groups files by cycle, sorts activity by the newest upload, and uses the newest upload date", () => {
     const groups = groupFilesByBillCycle([
       file("cycle-08.xlsx", "08", "2026-09-01T00:00:00.000Z"),
       file("cycle-11-b.xlsx", "11", "2026-09-03T00:00:00.000Z"),
       file("cycle-11-a.xlsx", "11", "2026-09-02T00:00:00.000Z"),
+      file("cycle-24.xlsx", "24", "2026-09-04T00:00:00.000Z"),
       { ...file("308. Billed Adjustments Monthly Summary Report_I_06.XLSX", "06"), stepFunction: null },
       { ...file("unmapped.xlsx", "00"), stepFunction: null },
     ]);
 
-    expect(groups.map((group) => group.cycle)).toEqual(["11", "08", "06"]);
-    expect(groups[0].latestUploadAt).toBe("2026-09-03T00:00:00.000Z");
-    expect(groups[0].files.map((item) => item.expectedFileName)).toEqual(["cycle-11-a.xlsx", "cycle-11-b.xlsx"]);
-    expect(formatBillCycleUploadDate(groups[0].latestUploadAt)).toBe("Sep 3, 2026");
+    expect(groups.map((group) => group.cycle)).toEqual(["24", "11", "08", "06"]);
+    expect(groups[1].latestUploadAt).toBe("2026-09-03T00:00:00.000Z");
+    expect(groups[1].files.map((item) => item.expectedFileName)).toEqual(["cycle-11-a.xlsx", "cycle-11-b.xlsx"]);
+    expect(formatBillCycleUploadDate(groups[1].latestUploadAt)).toBe("Sep 3, 2026");
+    expect(sortBillCyclesAscending(groups).map((group) => group.cycle)).toEqual(["06", "08", "11", "24"]);
     expect(formatBillCycleUploadDate(null)).toBe("—");
   });
 
@@ -44,5 +46,24 @@ describe("bill-cycle workspace data", () => {
     const expected = [file("411. Bill Control_PHP_B_27.XLSX", "27")];
 
     expect(validateBillCycleUpload(expected, [new File(["411"], "411. Bill Control_PHP_B_27.xlsx")])).toMatchObject({ valid: true });
+  });
+
+  it("accepts relaxed bill-cycle filenames while retaining report identity", () => {
+    const expected = [file("308. Billed Adjustments Monthly Summary Report_B_01.XLSX", "01"), file("411. Bill Control_PHP_B_01.XLSX", "01")];
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. corrected title_b_01.xlsx")])).toMatchObject({ valid: true });
+    expect(validateBillCycleUpload(expected, [new File(["411"], "411. corrected title_usd_b_01.xlsx")])).toMatchObject({ valid: false });
+  });
+
+  it("uses the selected workspace and cycle when a valid upload filename omits its suffixes", () => {
+    const expected = [file("308. Billed Adjustments Monthly Summary Report_B_27.XLSX", "27")];
+
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_b.xlsx")])).toMatchObject({
+      valid: true,
+      uploads: [{ expected: expect.objectContaining({ expectedFileName: "308. Billed Adjustments Monthly Summary Report_B_27.XLSX" }) }],
+    });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308.xlsx")])).toMatchObject({ valid: true });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_27.xlsx")])).toMatchObject({ valid: true });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_g_27.xlsx")])).toMatchObject({ valid: false });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_b_24.xlsx")])).toMatchObject({ valid: false });
   });
 });

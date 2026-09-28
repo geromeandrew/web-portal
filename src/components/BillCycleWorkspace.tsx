@@ -2,7 +2,7 @@ import { AlertCircle, CheckCircle2, ChevronRight, FileText, LoaderCircle, Trash2
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../lib/apiClient";
 import type { ProcessingPipelineCatalogDto, ProcessingPipelineFileDto, ProcessingPipelineFileListDto } from "../lib/apiTypes";
-import { formatBillCycleUploadDate, groupFilesByBillCycle, validateBillCycleUpload } from "../lib/billCycleWorkspace";
+import { formatBillCycleUploadDate, formatBillCycleUploadTimestamp, groupFilesByBillCycle, sortBillCyclesAscending, validateBillCycleUpload } from "../lib/billCycleWorkspace";
 import { resolveWorkspacePipelineCode, type WorkspaceDefinition } from "../lib/workspaces";
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
@@ -37,7 +37,7 @@ type UploadProgress = { completed: number; total: number; error: string | null; 
 
 // The expanded file card is inset from the activity table. These tracks retain
 // the parent table's visual column starts despite that inset.
-const expandedFileGridColumns = "calc(56% + 20px) calc(13% + 12px) calc(13% + 12px) calc(13% + 12px) calc(5% - 56px)";
+const expandedFileGridColumns = "calc(48% + 20px) calc(24% + 12px) calc(10% + 12px) calc(10% + 12px) calc(8% - 56px)";
 
 function WorkspaceBackgroundIllustration() {
   return (
@@ -78,6 +78,8 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
   const [dragging, setDragging] = useState(false);
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(() => new Set());
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>(null);
+  const [removingKeys, setRemovingKeys] = useState<Set<string>>(() => new Set());
+  const [removalRequest, setRemovalRequest] = useState<{ files: readonly ProcessingPipelineFileDto[]; label: string } | null>(null);
 
   useEffect(() => {
     if (!uploadProgress?.complete) return;
@@ -120,8 +122,10 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
   }, [loadFiles, workspace.id]);
 
   const cycles = useMemo(() => groupFilesByBillCycle(files), [files]);
+  const cyclesAscending = useMemo(() => sortBillCyclesAscending(cycles), [cycles]);
   const selectedGroup = cycles.find((group) => group.cycle === selectedCycle);
   const visibleCycles = filterCycle === "all" ? cycles : cycles.filter((group) => group.cycle === filterCycle);
+  const removalInProgress = Boolean(removalRequest?.files.some((file) => file.key && removingKeys.has(file.key)));
 
   const uploadFiles = async (selected: FileList | File[]) => {
     if (!pipelineCode || !selectedCycle || !selectedGroup || uploadProgress) return;
@@ -152,11 +156,29 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
     } finally {
       uploadAbortRef.current = null;
       await loadFiles(pipelineCode);
+      if (completed > 0) {
+        setExpandedCycles((current) => new Set(current).add(selectedCycle));
+      }
       setUploadProgress({ completed, total: validation.uploads.length, error: errorMessage, complete: !errorMessage, entries: entries.map((entry, index) => ({ ...entry, complete: index < completed })) });
     }
   };
 
   const cancelUpload = () => uploadAbortRef.current?.abort();
+
+  const removeFiles = async () => {
+    const targetFiles = removalRequest?.files ?? [];
+    const label = removalRequest?.label ?? "selected files";
+    if (!pipelineCode) return;
+    const keys = targetFiles.flatMap((file) => file.key ? [file.key] : []);
+    if (!keys.length) return;
+    setRemovingKeys((current) => new Set([...current, ...keys]));
+    const results = await Promise.allSettled(keys.map((key) => apiRequest(`/processing-pipelines/${encodeURIComponent(pipelineCode)}/files?${new URLSearchParams({ key })}`, { method: "DELETE" })));
+    setRemovingKeys((current) => { const next = new Set(current); keys.forEach((key) => next.delete(key)); return next; });
+    await loadFiles(pipelineCode);
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length) setNotice(`${failures.length} file${failures.length === 1 ? " could" : "s could"} not be removed.`);
+    setRemovalRequest(null);
+  };
 
   return (
     <div className={workspaceUi.page}>
@@ -174,7 +196,7 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
             <h2 id="file-upload-heading" className={workspaceUi.panelHeading}>FILE UPLOAD</h2>
             <div className={workspaceUi.guidance}>
               <div className="flex items-center gap-2 font-elliot text-[12px] font-bold text-[#171b24] 2xl:gap-3 2xl:text-[14px]"><img src={fileGuidelinesIcon} alt="" className="h-5 w-5 2xl:h-6 2xl:w-6" />File Guidelines</div>
-              <p className="mt-3 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-4 2xl:text-[13px] 2xl:leading-5">All files must follow the correct file name convention:</p>
+              <p className="mt-3 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-4 2xl:text-[13px] 2xl:leading-5">Select the bill cycle first. Files are checked by report identity; the selected workspace and cycle are applied when the file is stored:</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-2 2xl:space-y-1 2xl:pl-5 2xl:text-[13px] 2xl:leading-5">
                 {selectedGroup ? selectedGroup.files.map((file) => <li key={file.id}>{file.expectedFileName}</li>) : <li>Select a bill cycle to see its required files.</li>}
               </ul>
@@ -183,7 +205,7 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
             <label className="sr-only" htmlFor="bill-cycle-upload">Bill Cycle</label>
             <select id="bill-cycle-upload" value={selectedCycle} onChange={(event) => { setSelectedCycle(event.target.value); setUploadProgress(null); }} disabled={loading || !cycles.length} className={workspaceUi.cycleSelect}>
               <option value="">{loading ? "Loading bill cycles" : "Bill Cycle"}</option>
-              {cycles.map((group) => <option key={group.cycle} value={group.cycle}>Bill Cycle {group.cycle}</option>)}
+              {cyclesAscending.map((group) => <option key={group.cycle} value={group.cycle}>Bill Cycle {group.cycle}</option>)}
             </select>
             {selectedGroup ? <p className={workspaceUi.cycleMeta}>{selectedGroup.files.length} required files for Bill Cycle {selectedGroup.cycle}</p> : null}
 
@@ -213,23 +235,23 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
               <label className="flex items-center gap-2 font-elliot text-[10px] text-[#252d39]">Filter
                 <select value={filterCycle} onChange={(event) => setFilterCycle(event.target.value)} className={workspaceUi.activityFilter}>
                   <option value="all">All Bill Cycle</option>
-                  {cycles.map((group) => <option key={group.cycle} value={group.cycle}>Bill Cycle {group.cycle}</option>)}
+                  {cyclesAscending.map((group) => <option key={group.cycle} value={group.cycle}>Bill Cycle {group.cycle}</option>)}
                 </select>
               </label>
             </div>
             <div className={workspaceUi.activityBody}>
               {!loading && (!configured || !visibleCycles.length) ? <EmptyActivityState message={!configured ? "No file mapping is configured for this workspace." : filterCycle === "all" ? undefined : "No uploaded files match the selected bill cycle."} /> : <table className="w-full min-w-[600px] table-fixed border-collapse text-left">
                 <colgroup>
-                  <col className="w-[28%]" />
-                  <col className="w-[28%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[5%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <thead className={workspaceUi.tableHead}><tr><th className="px-7 py-3 2xl:px-8 2xl:py-4">BATCH CYCLE</th><th className="px-4 py-3 2xl:px-5 2xl:py-4">UPLOADED BY</th><th className="px-4 py-3 2xl:px-5 2xl:py-4">UPLOAD</th><th className="px-4 py-3 2xl:px-5 2xl:py-4">PRELOAD</th><th className="px-4 py-3 2xl:px-5 2xl:py-4">POSTLOAD</th><th className="w-10 px-2 py-3 2xl:w-12 2xl:py-4"><span className="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                  {loading ? <tr><td colSpan={6} className="px-7 py-10 text-center"><LoaderCircle className="mx-auto h-5 w-5 animate-spin text-[#087dca]" /></td></tr> : !configured ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No file mapping is configured for this workspace.</td></tr> : !visibleCycles.length ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No bill-cycle activity is available.</td></tr> : visibleCycles.map((group) => <ActivityRow key={group.cycle} group={group} expanded={expandedCycles.has(group.cycle)} onToggle={() => setExpandedCycles((current) => { const next = new Set(current); next.has(group.cycle) ? next.delete(group.cycle) : next.add(group.cycle); return next; })} />)}
+                  {loading ? <tr><td colSpan={6} className="px-7 py-10 text-center"><LoaderCircle className="mx-auto h-5 w-5 animate-spin text-[#087dca]" /></td></tr> : !configured ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No file mapping is configured for this workspace.</td></tr> : !visibleCycles.length ? <tr><td colSpan={6} className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500">No bill-cycle activity is available.</td></tr> : visibleCycles.map((group) => <ActivityRow key={group.cycle} group={group} expanded={expandedCycles.has(group.cycle)} onToggle={() => setExpandedCycles((current) => { const next = new Set(current); next.has(group.cycle) ? next.delete(group.cycle) : next.add(group.cycle); return next; })} onRemove={(files, label) => setRemovalRequest({ files, label })} removingKeys={removingKeys} />)}
                 </tbody>
               </table>}
             </div>
@@ -237,31 +259,34 @@ export default function BillCycleWorkspace({ workspace }: { workspace: Workspace
           </div>
         </div>
       </section>
+      {removalRequest ? <div role="dialog" aria-modal="true" aria-label="Confirm removing uploaded files" className="fixed inset-0 z-50 grid place-items-center bg-[#0e1522]/30 p-5"><section className="w-full max-w-sm rounded-[8px] bg-white p-6 shadow-2xl"><h2 className="font-elliot text-[17px] font-bold text-[#171b24]">Remove uploaded file{removalRequest.files.length === 1 ? "" : "s"}?</h2><p className="mt-2 font-elliot text-[12px] leading-5 text-[#64748b]">This permanently removes {removalRequest.files.length === 1 ? "the selected file" : `${removalRequest.files.length} files`} from {removalRequest.label}.</p><div className="mt-5 flex justify-end gap-2"><button type="button" disabled={removalInProgress} onClick={() => setRemovalRequest(null)} className="focus-ring rounded-[5px] px-4 py-2 font-elliot text-[12px] text-[#252d39] disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={removalInProgress} onClick={() => void removeFiles()} className="focus-ring inline-flex items-center gap-2 rounded-[5px] bg-[#d84a4a] px-4 py-2 font-elliot text-[12px] font-bold text-white hover:bg-[#bd3939] disabled:cursor-not-allowed disabled:opacity-70">{removalInProgress ? <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Removing</> : "Remove"}</button></div></section></div> : null}
     </div>
   );
 }
 
-function ActivityRow({ group, expanded, onToggle }: { group: ReturnType<typeof groupFilesByBillCycle>[number]; expanded: boolean; onToggle: () => void }) {
+function ActivityRow({ group, expanded, onToggle, onRemove, removingKeys }: { group: ReturnType<typeof groupFilesByBillCycle>[number]; expanded: boolean; onToggle: () => void; onRemove(files: readonly ProcessingPipelineFileDto[], label: string): void; removingKeys: Set<string> }) {
+  const newest = [...group.files].filter((file) => file.uploadedAt ?? file.lastModified).sort((left, right) => Date.parse(right.uploadedAt ?? right.lastModified ?? "") - Date.parse(left.uploadedAt ?? left.lastModified ?? ""))[0];
+  const removableFiles = group.files.filter((file) => file.key);
+  const removing = removableFiles.some((file) => file.key && removingKeys.has(file.key));
   return <>
     <tr className="border-b border-[#dce3ed] bg-white">
       <td className={`${workspaceUi.tableCell} px-7 py-2.5 font-bold`}><button type="button" onClick={onToggle} className="focus-ring inline-flex items-center gap-3 rounded-sm"><ChevronRight className={`h-4 w-4 text-[#1689df] transition-transform ${expanded ? "rotate-90" : ""}`} />Bill Cycle {group.cycle}</button></td>
-      <td className={`${workspaceUi.tableCell} px-4 py-2.5`}>—</td><td className={`${workspaceUi.tableCell} px-4 py-2.5`}>{formatBillCycleUploadDate(group.latestUploadAt)}</td><td className={`${workspaceUi.tableCell} px-4 py-2.5`}>—</td><td className={`${workspaceUi.tableCell} px-4 py-2.5`}>—</td>
-      <td className="px-2 py-2.5"><button type="button" disabled title="Removing pipeline files is not available through the current API." aria-label={`Remove Bill Cycle ${group.cycle}`} className="grid h-6 w-6 place-items-center rounded text-[#1689df] opacity-80 disabled:cursor-not-allowed"><Trash2 className="h-3.5 w-3.5" /></button></td>
+      <td className={`${workspaceUi.tableCell} break-words px-4 py-3 leading-4`}>{newest?.uploadedBy ?? "-"}</td><td className={`${workspaceUi.tableCell} whitespace-normal px-4 py-3 text-[10px] leading-4 2xl:text-[12px]`}>{formatBillCycleUploadTimestamp(group.latestUploadAt)}</td><td className={`${workspaceUi.tableCell} px-4 py-3`}>-</td><td className={`${workspaceUi.tableCell} px-4 py-3`}>-</td>
+      <td className="px-2 py-2.5"><button type="button" disabled={!removableFiles.length || removing} onClick={() => onRemove(removableFiles, `Bill Cycle ${group.cycle}`)} aria-label={`Remove Bill Cycle ${group.cycle}`} className="focus-ring grid h-6 w-6 place-items-center rounded text-[#1689df] disabled:cursor-not-allowed disabled:opacity-40">{removing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}</button></td>
     </tr>
-    {expanded ? <tr className="border-b border-[#dce3ed] bg-[#fbfdff]"><td colSpan={6} className="px-7 pb-5 pt-3"><CycleFileDetails files={group.files} /></td></tr> : null}
+    {expanded ? <tr className="border-b border-[#dce3ed] bg-[#fbfdff]"><td colSpan={6} className="px-7 pb-5 pt-3"><CycleFileDetails files={group.files} onRemove={onRemove} removingKeys={removingKeys} /></td></tr> : null}
   </>;
 }
 
-function CycleFileDetails({ files }: { files: readonly ProcessingPipelineFileDto[] }) {
+function CycleFileDetails({ files, onRemove, removingKeys }: { files: readonly ProcessingPipelineFileDto[]; onRemove(files: readonly ProcessingPipelineFileDto[], label: string): void; removingKeys: Set<string> }) {
   return <div className="overflow-hidden rounded-[5px] border border-[#dce3ed] bg-white">
     <div className="divide-y divide-[#e6ebf2]">
       {files.map((file) => <div key={file.id} style={{ gridTemplateColumns: expandedFileGridColumns }} className="grid min-h-[36px] items-center px-3 font-elliot text-[11px] text-[#1f2937] 2xl:min-h-[44px] 2xl:px-4 2xl:text-[13px]">
         <div className="flex min-w-0 items-center gap-2"><img src={sheetsIcon} alt="" aria-hidden="true" className="h-3.5 w-auto shrink-0" /><span className="truncate">{file.matchedFileName ?? file.expectedFileName}</span></div>
-        <span className={file.availability === "present" ? "font-medium text-[#17ad6b]" : "text-[#8b96a6]"}>{file.availability === "present" ? "✓ Read" : "—"}</span>
-        <span className="text-[#8b96a6]">—</span><span className="text-[#8b96a6]">—</span>
-        <button type="button" disabled title="Removing pipeline files is not available through the current API." aria-label={`Remove ${file.expectedFileName}`} className="grid h-6 w-6 place-items-center rounded text-[#1689df] disabled:cursor-not-allowed"><Trash2 className="h-3.5 w-3.5" /></button>
+        <span className={file.availability === "present" ? "font-medium text-[#17ad6b]" : "text-[#8b96a6]"}>{file.availability === "present" ? <><span>✓ Read</span><small className="block whitespace-normal font-normal leading-4 text-[#4165a8]">{formatBillCycleUploadTimestamp(file.uploadedAt ?? file.lastModified)}</small></> : "-"}</span>
+        <span className="text-[#8b96a6]">-</span><span className="text-[#8b96a6]">-</span>
+        <button type="button" disabled={!file.key || (file.key ? removingKeys.has(file.key) : false)} onClick={() => onRemove([file], file.matchedFileName ?? file.expectedFileName)} aria-label={`Remove ${file.expectedFileName}`} className="focus-ring grid h-6 w-6 place-items-center rounded text-[#1689df] disabled:cursor-not-allowed disabled:opacity-40">{file.key && removingKeys.has(file.key) ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}</button>
       </div>)}
     </div>
-    <p className="flex items-center gap-1.5 px-3 py-2 font-elliot text-[10px] text-[#252d39]"><AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#ffb400]" />File removal is unavailable because the current pipeline API has no delete endpoint.</p>
   </div>;
 }
