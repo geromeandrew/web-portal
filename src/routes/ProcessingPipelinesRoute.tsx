@@ -115,7 +115,7 @@ function GenericProcessingPipelinesRoute({
   const pendingUpload = useRef<ProcessingPipelineFileDto | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const timers = useRef<number[]>([]);
-  const isAdmin = Boolean(user);
+  const isAdmin = Boolean(user?.isAdmin);
   const isDedicatedWorkspace = Boolean(workspaceId);
 
   const loadFiles = useCallback(async () => {

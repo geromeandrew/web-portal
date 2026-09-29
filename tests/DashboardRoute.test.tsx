@@ -15,6 +15,10 @@ const auth = vi.hoisted(() => ({
     email: "juan.miguel@globe.com",
     displayName: "Juan Miguel Dela Cruz",
     createdAt: "2026-01-01T00:00:00.000Z",
+    isAdmin: false,
+    modules: [
+      "bss_billcycle_glob", "bss_billcycle_inov", "bss_billcycle_bayn", "memo_sst", "prepaid_reclass",
+    ].map((moduleId) => ({ moduleId, moduleName: moduleId, routePath: "/", accessLevel: "BUSINESS_USER" as const })),
   },
 }));
 

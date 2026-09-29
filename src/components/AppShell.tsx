@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { getUserDisplayName } from "../lib/userDisplay";
-import { workspaces, workspaceHref } from "../lib/workspaces";
+import { allowedWorkspaces, workspaceHref } from "../lib/workspaces";
 import { cn } from "../lib/utils";
 import globeLogo from "../assets/globe-logo.png";
 import userIcon from "../assets/user-icon.svg";
@@ -38,10 +38,10 @@ const shellUi = {
     "block rounded-md px-3 py-3 font-elliot text-sm text-slate-700 hover:bg-[#f1f7ff] hover:text-[#087dca]",
 };
 
-function WorkspaceMenu({ onNavigate }: { onNavigate?: () => void }) {
+function WorkspaceMenu({ onNavigate, moduleIds }: { onNavigate?: () => void; moduleIds: readonly string[] }) {
   return (
     <div className="py-1" aria-label="Workspace links">
-      {workspaces.map((workspace) => (
+      {allowedWorkspaces(moduleIds).map((workspace) => (
         <Link
           key={workspace.id}
           to={workspaceHref(workspace)}
@@ -61,6 +61,7 @@ export default function AppShell() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [administratorOpen, setAdministratorOpen] = useState(false);
   const { logout, user } = useAuth();
+  const moduleIds = user?.modules?.map((module) => module.moduleId) ?? [];
   const closeMenus = () => {
     setMobileOpen(false);
     setWorkspaceOpen(false);
@@ -112,11 +113,11 @@ export default function AppShell() {
               </button>
               {workspaceOpen ? (
                 <div id="workspace-menu" className={shellUi.popover}>
-                  <WorkspaceMenu onNavigate={closeMenus} />
+                  <WorkspaceMenu onNavigate={closeMenus} moduleIds={moduleIds} />
                 </div>
               ) : null}
             </div>
-            <div className="relative h-full">
+            {user?.isAdmin ? <div className="relative h-full">
               <button
                 type="button"
                 onClick={() => {
@@ -131,15 +132,10 @@ export default function AppShell() {
               </button>
               {administratorOpen ? (
                 <div id="administrator-menu" className={shellUi.popover}>
-                  <span
-                    className="block px-4 py-3 font-elliot text-[13px] text-slate-400"
-                    aria-disabled="true"
-                  >
-                    Coming soon
-                  </span>
+                  <Link to="/administrator/users" onClick={closeMenus} className={shellUi.popoverLink}>User access</Link>
                 </div>
               ) : null}
-            </div>
+            </div> : null}
           </nav>
 
           <div className="flex items-center gap-3">
@@ -185,7 +181,7 @@ export default function AppShell() {
             <p className="px-3 pb-1 pt-4 font-elliot text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
               Workspace
             </p>
-            <WorkspaceMenu onNavigate={closeMenus} />
+            <WorkspaceMenu onNavigate={closeMenus} moduleIds={moduleIds} />
             <p className="px-3 pb-3 pt-4 font-elliot text-[13px] text-slate-400">
               Administrator — Coming soon
             </p>
