@@ -1,5 +1,5 @@
 import type { ProcessingPipelineFileDto } from "../src/lib/apiTypes";
-import { formatBillCycleUploadDate, groupFilesByBillCycle, sortBillCyclesAscending, validateBillCycleUpload } from "../src/lib/billCycleWorkspace";
+import { formatBillCycleUploadDate, formatBillCycleUploadTimestamp, groupFilesByBillCycle, sortBillCyclesAscending, validateBillCycleUpload } from "../src/lib/billCycleWorkspace";
 
 const file = (name: string, cycle: string, lastModified: string | null = null): ProcessingPipelineFileDto => ({
   id: `${cycle}-${name}`,
@@ -29,6 +29,7 @@ describe("bill-cycle workspace data", () => {
     expect(groups[1].latestUploadAt).toBe("2026-09-03T00:00:00.000Z");
     expect(groups[1].files.map((item) => item.expectedFileName)).toEqual(["cycle-11-a.xlsx", "cycle-11-b.xlsx"]);
     expect(formatBillCycleUploadDate(groups[1].latestUploadAt)).toBe("Sep 3, 2026");
+    expect(formatBillCycleUploadTimestamp(groups[1].latestUploadAt)).not.toMatch(/\b(?:GMT|UTC|PST|PDT|EST|EDT|CST|CDT|SGT)\b/);
     expect(sortBillCyclesAscending(groups).map((group) => group.cycle)).toEqual(["06", "08", "11", "24"]);
     expect(formatBillCycleUploadDate(null)).toBe("—");
   });
@@ -54,7 +55,16 @@ describe("bill-cycle workspace data", () => {
     expect(validateBillCycleUpload(expected, [new File(["411"], "411. corrected title_usd_b_01.xlsx")])).toMatchObject({ valid: false });
   });
 
-  it("uses the selected workspace and cycle when a valid upload filename omits its suffixes", () => {
+  it("explains when a 411 Bill Control filename omits its currency", () => {
+    const expected = [file("411. Bill Control_PHP_B_01.XLSX", "01")];
+
+    expect(validateBillCycleUpload(expected, [new File(["411"], "411. Bill Control_B_01.xlsx")])).toEqual({
+      valid: false,
+      message: "411 Bill Control files must include either PHP or USD in the filename.",
+    });
+  });
+
+  it("uses the selected workspace and cycle when a valid upload filename has omitted or conflicting suffixes", () => {
     const expected = [file("308. Billed Adjustments Monthly Summary Report_B_27.XLSX", "27")];
 
     expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_b.xlsx")])).toMatchObject({
@@ -63,7 +73,13 @@ describe("bill-cycle workspace data", () => {
     });
     expect(validateBillCycleUpload(expected, [new File(["308"], "308.xlsx")])).toMatchObject({ valid: true });
     expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_27.xlsx")])).toMatchObject({ valid: true });
-    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_g_27.xlsx")])).toMatchObject({ valid: false });
-    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_b_24.xlsx")])).toMatchObject({ valid: false });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_g_27.xlsx")])).toMatchObject({
+      valid: true,
+      uploads: [{ expected: expect.objectContaining({ expectedFileName: "308. Billed Adjustments Monthly Summary Report_B_27.XLSX" }) }],
+    });
+    expect(validateBillCycleUpload(expected, [new File(["308"], "308. revised title_b_24.xlsx")])).toMatchObject({
+      valid: true,
+      uploads: [{ expected: expect.objectContaining({ expectedFileName: "308. Billed Adjustments Monthly Summary Report_B_27.XLSX" }) }],
+    });
   });
 });
