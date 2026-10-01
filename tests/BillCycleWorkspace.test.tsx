@@ -74,7 +74,9 @@ describe("BillCycleWorkspace", () => {
 
     expect(container.textContent).toContain("✓ Read");
     expect(container.textContent).toContain("8:00:00 AM");
-    expect(container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]')).toHaveProperty("disabled", false);
+    const deleteButton = container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]') as HTMLButtonElement;
+    expect(deleteButton).toHaveProperty("disabled", false);
+    expect(deleteButton.parentElement?.style.gridTemplateColumns).toContain("2.25rem");
   });
 
   it("sorts selectors ascending and moves an uploaded cycle to the top expanded", async () => {
@@ -110,6 +112,9 @@ describe("BillCycleWorkspace", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
+    const cycle11Toggle = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Bill Cycle 11")) as HTMLButtonElement;
+    await act(async () => cycle11Toggle.click());
+
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["cycle 24"], "cycle-24.xlsx")] });
     await act(async () => {
@@ -121,5 +126,41 @@ describe("BillCycleWorkspace", () => {
     const activityRows = Array.from(container.querySelectorAll("tbody > tr"));
     expect(activityRows[0].textContent).toContain("Bill Cycle 24");
     expect(activityRows[1].textContent).toContain("Read");
+    expect(activityRows).toHaveLength(3);
+    expect(activityRows[1].textContent).toContain("cycle-24.xlsx");
+    expect(activityRows[2].textContent).toContain("Bill Cycle 11");
+  });
+
+  it("removes an individual uploaded file after confirmation", async () => {
+    let currentFiles = files;
+    api.apiRequest.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === "/processing-pipelines") return Promise.resolve({ pipelines: [{ code: "globe-bss", label: "BSS Bill Cycle - Globe" }] });
+      if (path === "/processing-pipelines/globe-bss/files?key=308" && options?.method === "DELETE") {
+        currentFiles = files.map((file) => file.id === "308" ? { ...file, matchedFileName: null, availability: "missing" as const, key: null, size: null, lastModified: null } : file);
+        return Promise.resolve();
+      }
+      if (path === "/processing-pipelines/globe-bss/files") return Promise.resolve({ configured: true, files: currentFiles });
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+
+    await act(async () => {
+      root.render(<BillCycleWorkspace workspace={workspace} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const cycleToggle = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Bill Cycle 11")) as HTMLButtonElement;
+    await act(async () => cycleToggle.click());
+    const deleteButton = container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]') as HTMLButtonElement;
+    await act(async () => deleteButton.click());
+    const confirmButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Remove") as HTMLButtonElement;
+    await act(async () => {
+      confirmButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(api.apiRequest).toHaveBeenCalledWith("/processing-pipelines/globe-bss/files?key=308", { method: "DELETE" });
+    expect(container.querySelector('[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]')).toHaveProperty("disabled", true);
   });
 });

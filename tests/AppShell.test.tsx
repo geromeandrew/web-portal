@@ -16,6 +16,10 @@ const auth = vi.hoisted(() => ({
     email: "juan.miguel@globe.com",
     displayName: "Juan Miguel Dela Cruz",
     createdAt: "2026-01-01T00:00:00.000Z",
+    isAdmin: true,
+    modules: [
+      "bss_billcycle_glob", "aprm_voice_accrual", "prepaid_reclass",
+    ].map((moduleId) => ({ moduleId, moduleName: moduleId, routePath: "/", accessLevel: "BUSINESS_USER" as const })),
   },
 }));
 
@@ -39,7 +43,7 @@ describe("AppShell", () => {
     container.remove();
   });
 
-  it("offers workspace navigation, the administrator placeholder, and sign-out", async () => {
+  it("offers authorized workspace navigation, administrator access, and sign-out", async () => {
     await act(async () => {
       root.render(
         <MemoryRouter
@@ -80,7 +84,7 @@ describe("AppShell", () => {
       button.textContent?.includes("Administrator"),
     ) as HTMLButtonElement;
     await act(async () => administratorButton.click());
-    expect(container.textContent).toContain("Coming soon");
+    expect(container.textContent).toContain("User access");
 
     const signOutButton = container.querySelector(
       'button[aria-label="Sign out"]',

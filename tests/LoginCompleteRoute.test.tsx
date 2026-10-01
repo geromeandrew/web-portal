@@ -85,6 +85,8 @@ describe("LoginCompleteRoute", () => {
       email: "person@example.com",
       displayName: "Person Example",
       createdAt: "2026-01-01T00:00:00.000Z",
+      isAdmin: false,
+      modules: [],
     };
 
     await render();

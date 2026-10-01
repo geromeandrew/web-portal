@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./auth/RequireAuth";
+import { RequireAdmin } from "./auth/RequireAdmin";
+import AdminUsersRoute from "./routes/AdminUsersRoute";
 import AppShell from "./components/AppShell";
 import AprmRoute from "./routes/AprmRoute";
 import DashboardRoute from "./routes/DashboardRoute";
@@ -27,6 +29,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<DashboardRoute />} />
+        <Route path="/administrator/users" element={<RequireAdmin><AdminUsersRoute /></RequireAdmin>} />
         <Route
           path="/prepaid"
           element={<Navigate to={prepaidWorkspaceHref} replace />}

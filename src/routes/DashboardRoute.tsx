@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { getUserFirstName } from "../lib/userDisplay";
 import {
-  dashboardWorkspaces,
+  allowedWorkspaces,
   dashboardWorkspaceHref,
   type WorkspaceDefinition,
 } from "../lib/workspaces";
@@ -55,6 +55,7 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceDefinition }) {
 
 export default function DashboardRoute() {
   const { user } = useAuth();
+  const visibleWorkspaces = allowedWorkspaces(user?.modules?.map((module) => module.moduleId) ?? []);
 
   return (
     <div className={dashboardUi.page}>
@@ -71,7 +72,7 @@ export default function DashboardRoute() {
           manage executions
         </p>
         <div className={dashboardUi.grid}>
-          {dashboardWorkspaces.map((workspace) => (
+          {visibleWorkspaces.map((workspace) => (
             <WorkspaceCard key={workspace.id} workspace={workspace} />
           ))}
         </div>

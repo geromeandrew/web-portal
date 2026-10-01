@@ -27,6 +27,8 @@ const previewUser: UserDto = {
   email: "juan.miguel.delacruz@globe.com",
   displayName: "Juan Miguel Dela Cruz",
   createdAt: "2026-01-01T00:00:00.000Z",
+  isAdmin: true,
+  modules: [],
 };
 
 /**
