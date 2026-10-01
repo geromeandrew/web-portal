@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: "jsdom",
       globals: true,
+      environmentOptions: {
+        jsdom: { url: "http://localhost:5173" },
+      },
     },
   };
 });
