@@ -10,19 +10,9 @@ include:
 
 stages:
     - test
-    - test_build
     - build_image
     - scan_image
     - publish_image
-
-test_secrets_job:
-  stage: test_build
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^dev-/'
-  script:
-    - echo "Testing if the Runner can see the UI secrets..."
-    - echo "The Dev Client ID is -> $DEV_OKTA_CLIENT_ID"
-    - echo "The Dev Issuer is -> $DEV_OKTA_ISSUER"
 
 build_image:
   stage: build_image
@@ -36,12 +26,12 @@ build_image:
     # 2. Match Development tags (e.g., dev-v1.0.0, dev-0.0.1)
     - if: '$CI_COMMIT_TAG =~ /^dev-/'
       variables:
-        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=$DEV_OKTA_CLIENT_ID --build-arg VITE_OKTA_ISSUER=$DEV_OKTA_ISSUER"
+        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=0oa28rhxcsp6MAfDL0h8 --build-arg VITE_OKTA_ISSUER=https://globemfa.okta.com/oauth2/default"
 
     # 3. Match Staging tags (e.g., stg-v1.0.0)
     - if: '$CI_COMMIT_TAG =~ /^stg-/'
       variables:
-        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=$STG_OKTA_CLIENT_ID --build-arg VITE_OKTA_ISSUER=$STG_OKTA_ISSUER"
+        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=0oa1nijkhqleYMa9B0x8 --build-arg VITE_OKTA_ISSUER=https://globe.okta.com"
 
   artifacts:
     paths:
