@@ -37,12 +37,8 @@ build_image:
         TARGET_ISSUER: $PRD_OKTA_ISSUER
 
   script:
-    # 1. Recreate the template's required JFrog Authentication
-    - jfrog_docker_auth=$(echo -n "$PE_ARTIFACT_SA_USERNAME:$PE_ARTIFACT_SA_TOKEN" | base64)
-    - docker_auth_json="{\"auths\":{\"${PE_ARTIFACTORY_URL}\":{\"auth\":\"$(echo \"$jfrog_docker_auth\" | tr -d '[:space:]')\"}}}"
-    - echo $docker_auth_json > /kaniko/.docker/config.json
-    
-    # 2. Run the exact Kaniko command, but ADD your dynamic Vite build-args
+    # The template already handles JFrog authentication in the background!
+    # Just run the Kaniko command with your appended build arguments:
     - /kaniko/executor 
       --context $CI_PROJECT_DIR 
       --dockerfile $CI_PROJECT_DIR/Dockerfile 
@@ -54,6 +50,7 @@ build_image:
       --tarPath ${CI_PROJECT_DIR}/app_image.tar 
       --destination ${PE_ARTIFACTORY_URL}/${PE_ARTIFACT_DOCKER_LOCAL_REPO}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG} 
       --no-push
+
   artifacts:
     paths:
       - "*.tar"
