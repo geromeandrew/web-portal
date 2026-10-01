@@ -62,7 +62,7 @@ RUN AUTH_BASE64=$(printf "%s:%s" "$JFROG_USERNAME" "$JFROG_PASSWORD" | base64 | 
     echo "//${ARTIFACTORY_URL}/artifactory/api/npm/hmd-npm-virtual/:_auth=${AUTH_BASE64}" >> ~/.npmrc && \
     echo "always-auth=true" >> ~/.npmrc
 
-RUN npm install --verbose
+RUN npm install 
 
 # Run React compilation
 RUN NODE_OPTIONS="--max_old_space_size=1024" npm run build
