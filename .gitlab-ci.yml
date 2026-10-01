@@ -18,21 +18,42 @@ build_image:
   stage: build_image
   extends: .docker-build:kaniko-updated-vars
   rules:
-    # 1. Match Production tags (e.g., v1.0.0, v2.1)
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+/'
-      variables:
-        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=$PRD_OKTA_CLIENT_ID --build-arg VITE_OKTA_ISSUER=$PRD_OKTA_ISSUER"
-        
-    # 2. Match Development tags (e.g., dev-v1.0.0, dev-0.0.1)
+    # 1. Dev Environment (Triggers ONLY on tags starting with 'dev-')
     - if: '$CI_COMMIT_TAG =~ /^dev-/'
       variables:
-        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=0oa28rhxcsp6MAfDL0h8 --build-arg VITE_OKTA_ISSUER=https://globemfa.okta.com/oauth2/default"
+        TARGET_CLIENT: $DEV_OKTA_CLIENT_ID
+        TARGET_ISSUER: $DEV_OKTA_ISSUER
 
-    # 3. Match Staging tags (e.g., stg-v1.0.0)
+    # 2. Staging Environment (Triggers ONLY on tags starting with 'stg-')
     - if: '$CI_COMMIT_TAG =~ /^stg-/'
       variables:
-        BUILD_ARGS: "--build-arg VITE_OKTA_CLIENT_ID=0oa1nijkhqleYMa9B0x8 --build-arg VITE_OKTA_ISSUER=https://globe.okta.com"
+        TARGET_CLIENT: $STG_OKTA_CLIENT_ID
+        TARGET_ISSUER: $STG_OKTA_ISSUER
 
+    # 3. Production Environment (Triggers ONLY on version tags like v1.0.0)
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+/'
+      variables:
+        TARGET_CLIENT: $PRD_OKTA_CLIENT_ID
+        TARGET_ISSUER: $PRD_OKTA_ISSUER
+
+  script:
+    # 1. Recreate the template's required JFrog Authentication
+    - jfrog_docker_auth=$(echo -n "$PE_ARTIFACT_SA_USERNAME:$PE_ARTIFACT_SA_TOKEN" | base64)
+    - docker_auth_json="{\"auths\":{\"${PE_ARTIFACTORY_URL}\":{\"auth\":\"$(echo \"$jfrog_docker_auth\" | tr -d '[:space:]')\"}}}"
+    - echo $docker_auth_json > /kaniko/.docker/config.json
+    
+    # 2. Run the exact Kaniko command, but ADD your dynamic Vite build-args
+    - /kaniko/executor 
+      --context $CI_PROJECT_DIR 
+      --dockerfile $CI_PROJECT_DIR/Dockerfile 
+      --build-arg "JFROG_USERNAME=$PE_ARTIFACT_SA_USERNAME" 
+      --build-arg "JFROG_PASSWORD=$PE_ARTIFACT_SA_TOKEN" 
+      --build-arg "ARTIFACTORY_URL=$PE_ARTIFACTORY_URL" 
+      --build-arg "VITE_OKTA_CLIENT_ID=$TARGET_CLIENT" 
+      --build-arg "VITE_OKTA_ISSUER=$TARGET_ISSUER" 
+      --tarPath ${CI_PROJECT_DIR}/app_image.tar 
+      --destination ${PE_ARTIFACTORY_URL}/${PE_ARTIFACT_DOCKER_LOCAL_REPO}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG} 
+      --no-push
   artifacts:
     paths:
       - "*.tar"
