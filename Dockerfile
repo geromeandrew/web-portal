@@ -47,6 +47,8 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV VITE_OKTA_CLIENT_ID=$VITE_OKTA_CLIENT_ID
 ENV VITE_OKTA_ISSUER=$VITE_OKTA_ISSUER
 
+RUN echo "DEBUG: Client ID is $VITE_OKTA_CLIENT_ID and Issuer is $VITE_OKTA_ISSUER"
+
 # Install build dependencies
 RUN apk update && apk add --no-cache curl bash
 
