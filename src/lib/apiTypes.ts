@@ -3,6 +3,8 @@ export type UserDto = {
   email: string;
   displayName: string | null;
   createdAt: string;
+  isAdmin: boolean;
+  modules: { moduleId: string; moduleName: string; routePath: string; accessLevel: "BUSINESS_USER" }[];
 };
 
 export type UploadDto = {

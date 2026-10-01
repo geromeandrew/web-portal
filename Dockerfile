@@ -43,6 +43,8 @@ RUN echo "https://$JFROG_USERNAME:$JFROG_PASSWORD@$ARTIFACTORY_URL/artifactory/h
 ENV VIRTUAL_ENV=/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
+RUN echo "DEBUG: Client ID is $VITE_OKTA_CLIENT_ID and Issuer is $VITE_OKTA_ISSUER"
+
 # Install build dependencies
 RUN apk update && apk add --no-cache curl bash
 

@@ -16,6 +16,27 @@ export type PipelineOption = {
 
 export const prepaidWorkspaceHref = "/prepaid/file-upload";
 
+const moduleByWorkspaceId: Record<string, string> = {
+  "bss-bill-cycle-globe": "bss_billcycle_glob", "bss-bill-cycle-innove": "bss_billcycle_inov", "bss-bill-cycle-bayan": "bss_billcycle_bayn",
+  "bss-eom-globe": "bss_eom_glob", "bss-eom-innove": "bss_eom_inov", "bss-eom-bayan": "bss_eom_bayn",
+  "memo-stt": "memo_sst", "iccbs-innove": "iccbs_inov", "iccbs-bayan": "iccbs_bayn",
+  "aprm-voice-accrual": "aprm_voice_accrual", "aprm-voice-delta": "aprm_voice_delta",
+  "isms-ibob-actualization": "isms_ibob_actzn", "isms-iot-discount": "isms_iot_da",
+  north: "north", "prepaid-re-class": "prepaid_reclass",
+};
+
+export function workspaceModuleId(workspace: WorkspaceDefinition) {
+  return moduleByWorkspaceId[workspace.id] ?? null;
+}
+
+export function allowedWorkspaces(moduleIds: readonly string[]) {
+  const allowed = new Set(moduleIds);
+  return workspaces.filter((workspace) => {
+    const moduleId = workspaceModuleId(workspace);
+    return moduleId ? allowed.has(moduleId) : workspace.id === "aprm-content";
+  });
+}
+
 export const workspaces: readonly WorkspaceDefinition[] = [
   {
     id: "bss-bill-cycle-globe",
