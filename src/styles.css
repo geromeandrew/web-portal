@@ -1,0 +1,129 @@
+@import "@fontsource/nunito-sans/400.css";
+@import "@fontsource/nunito-sans/500.css";
+@import "@fontsource/nunito-sans/600.css";
+@import "@fontsource/nunito-sans/700.css";
+@import "@fontsource/nunito-sans/800.css";
+@import "@fontsource/nunito-sans/900.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-family: "Nunito Sans", Arial, sans-serif;
+  background: #f5f8fa;
+  color: #17212b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 0 0, rgba(21, 153, 160, 0.09), transparent 30rem),
+    linear-gradient(180deg, #fbfdfe 0%, #f4f8fa 100%);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(21, 153, 160, 0.22);
+}
+
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+}
+
+.font-heading,
+.portal-heading,
+.font-elliot {
+  font-family: "Nunito Sans", Arial, sans-serif;
+  font-synthesis: none;
+}
+
+@layer components {
+  .portal-panel {
+    @apply overflow-hidden rounded-[8px] bg-white shadow-[0_2px_8px_rgba(20,47,89,0.08)] ring-1 ring-[#e4eaf2];
+  }
+
+  .portal-page-header {
+    @apply relative isolate min-h-[220px] overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#e8f8f5] via-[#f3fbfc] to-[#edf4ff] px-7 py-9 shadow-[0_20px_60px_rgba(27,46,110,0.09)] sm:px-10 sm:py-11 lg:min-h-[250px] lg:px-12 lg:py-12;
+  }
+
+  .portal-page-glow {
+    @apply absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-sky-300/30 blur-3xl;
+  }
+
+  .portal-eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-teal;
+  }
+
+  .portal-tabs {
+    @apply flex gap-0.5 overflow-x-auto;
+  }
+
+  .portal-tab {
+    @apply focus-ring shrink-0 rounded-t-[9px] bg-[#d6e1ed] px-4 py-2 font-elliot text-[11px] text-[#6281a7] transition hover:bg-[#cbd8e5];
+  }
+
+  .portal-tab-active {
+    @apply bg-white font-bold text-[#171b24] shadow-none ring-0;
+  }
+
+  .portal-button-primary {
+    @apply inline-flex min-h-0 items-center justify-center gap-2 rounded-[5px] bg-[#087dca] px-4 py-2.5 font-elliot text-[12px] font-semibold text-white transition hover:bg-[#066caf] disabled:cursor-not-allowed disabled:opacity-45;
+  }
+
+  .portal-button-secondary {
+    @apply inline-flex min-h-0 items-center justify-center gap-2 rounded-[5px] border border-[#087dca] bg-white px-4 py-2 font-elliot text-[12px] text-[#087dca] transition hover:bg-[#f6f9fd] disabled:cursor-not-allowed disabled:opacity-45;
+  }
+
+  .portal-input {
+    @apply h-[35px] rounded-[5px] border border-[#b8c1cf] bg-white px-3 font-elliot text-[12px] text-[#5c6675] outline-none transition focus:ring-2 focus:ring-[#a8d6ff];
+  }
+
+  .portal-status {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold;
+  }
+
+  .portal-alert {
+    @apply flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[13px];
+  }
+
+  .portal-section-title {
+    @apply font-heading text-xl font-bold tracking-tight text-slate-900 sm:text-2xl;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
