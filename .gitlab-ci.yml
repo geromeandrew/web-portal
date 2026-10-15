@@ -72,3 +72,4 @@ publish_image:
         - crane push ${CI_PROJECT_DIR}/${CI_PROJECT_NAME}.tar "${PE_JFROG_URL}/${PE_JFROG_REPOSITORY}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}"
     only:
         - tags
+

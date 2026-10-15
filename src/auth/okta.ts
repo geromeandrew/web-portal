@@ -44,3 +44,4 @@ configureAccessTokenProvider({
     return token && "accessToken" in token ? token.accessToken : null;
   },
 });
+
