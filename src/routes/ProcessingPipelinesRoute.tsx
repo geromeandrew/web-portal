@@ -17,6 +17,7 @@ import WorkspaceShell, { workspaceUi } from "../components/WorkspaceShell";
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
 import { apiRequest } from "../lib/apiClient";
+import { validateFileSize } from "../lib/uploadClient";
 import type {
   ProcessingPipelineBatchExecutionDetailsDto,
   ProcessingPipelineBatchRunDto,
@@ -280,6 +281,11 @@ function GenericProcessingPipelinesRoute({
     const file = pendingUpload.current;
     pendingUpload.current = null;
     if (!selected || !file || !pipelineCode || stage !== "inbound") return;
+    const sizeError = validateFileSize(selected);
+    if (sizeError) {
+      setNotice(sizeError);
+      return;
+    }
     const form = new FormData();
     form.set("expectedFileName", file.expectedFileName);
     form.set("replace", file.availability === "present" ? "true" : "false");
