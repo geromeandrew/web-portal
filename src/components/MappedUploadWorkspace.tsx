@@ -20,6 +20,7 @@ import {
 } from "../lib/workspaces";
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
+import { validateFileSize } from "../lib/uploadClient";
 import sheetsIcon from "../assets/sheets-icon.svg";
 import { EmptyActivityState } from "./EmptyActivityState";
 import WorkspaceShell, { workspaceUi } from "./WorkspaceShell";
@@ -129,6 +130,11 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
     if (!pipelineCode || uploading.length) return;
     const chosen = Array.from(selected);
     if (!chosen.length) return;
+    const sizeError = chosen.map((file) => validateFileSize(file)).find(Boolean);
+    if (sizeError) {
+      setNotice(sizeError);
+      return;
+    }
     const assignments = chosen.map((file) => ({
       file,
       expected: files.find((item) => matches(file, item)),

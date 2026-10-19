@@ -136,7 +136,10 @@ export function matchesBillCycleUploadFile(
   const uploaded = billCycleFileIdentity(fileName);
   // The selected workspace and Bill Cycle determine the canonical storage
   // name, so supplied entity and cycle suffixes are intentionally ignored.
-  return Boolean(expected && uploaded && expected.report === uploaded.report);
+  return Boolean(
+    expected && uploaded && expected.report === uploaded.report &&
+    expectedFileName.split(".").at(-1)?.toLowerCase() === fileName.split(".").at(-1)?.toLowerCase(),
+  );
 }
 
 function billCycleFileIdentity(fileName: string) {

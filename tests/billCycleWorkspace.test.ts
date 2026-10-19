@@ -15,6 +15,16 @@ const file = (name: string, cycle: string, lastModified: string | null = null): 
 });
 
 describe("bill-cycle workspace data", () => {
+  it.each(["G", "B", "I"])("accepts SAP text files for entity %s without treating them as spreadsheets", (entity) => {
+    const expected = [file(`sap_glbilled_${entity}_06.txt`, "06")];
+    expect(validateBillCycleUpload(expected, [new File(["SAP text"], `sap_glbilled_${entity}_06.TXT`)])).toMatchObject({ valid: true });
+    expect(validateBillCycleUpload(expected, [new File(["SAP text"], `sap_glbilled_${entity}_06.XLSX`)])).toMatchObject({ valid: false });
+  });
+  it("includes the restored Globe 308 requirement in cycle guidance and validation", () => {
+    const expected = [file("308. Billed Adjustments Monthly Summary Report_G_06.XLSX", "06")];
+    expect(groupFilesByBillCycle(expected)[0].files[0].expectedFileName).toContain("308.");
+    expect(validateBillCycleUpload(expected, [new File(["report"], "308. Billed Adjustments Monthly Summary Report_G_06.xlsx")])).toMatchObject({ valid: true });
+  });
   it("groups files by cycle, sorts activity by the newest upload, and uses the newest upload date", () => {
     const groups = groupFilesByBillCycle([
       file("cycle-08.xlsx", "08", "2026-09-01T00:00:00.000Z"),
