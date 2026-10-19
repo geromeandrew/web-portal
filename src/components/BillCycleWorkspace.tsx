@@ -27,6 +27,7 @@ import {
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
+import { validateFileSize } from "../lib/uploadClient";
 import sheetsIcon from "../assets/sheets-icon.svg";
 import { EmptyActivityState } from "./EmptyActivityState";
 
@@ -233,6 +234,11 @@ export default function BillCycleWorkspace({
   const uploadFiles = async (selected: FileList | File[]) => {
     if (!pipelineCode || !selectedCycle || !selectedGroup || uploadProgress)
       return;
+    const sizeError = Array.from(selected).map((file) => validateFileSize(file)).find(Boolean);
+    if (sizeError) {
+      setNotice(sizeError);
+      return;
+    }
     const validation = validateBillCycleUpload(
       selectedGroup.files,
       Array.from(selected),
