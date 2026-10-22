@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { ApiClientError, downloadApiFile } from "../lib/apiClient";
+import { WorkspaceLoading } from "../components/WorkspaceLoading";
 import {
   formatMoney,
   moneyFields,
@@ -341,6 +342,7 @@ export default function PrepaidRoute() {
       error: string | null;
     }>("/workspace");
     if (!mounted.current || token !== workspaceGeneration.current) return;
+    setSources(state.sources);
     setSession(state.session);
     setError(state.error ?? "");
     if (state.run) {
@@ -352,7 +354,6 @@ export default function PrepaidRoute() {
       setLayouts({});
       setStage(1);
     }
-    setSources(state.sources);
   }, [refresh]);
   useEffect(() => {
     mounted.current = true;
@@ -659,6 +660,7 @@ export default function PrepaidRoute() {
           </button>
         </div>
       )}
+      {loading ? <WorkspaceLoading label="Loading workspace..." compact /> : null}
       {stage === 1 ? (
         <div className="pp-upload-grid">
           <div className="pp-upload-card">
@@ -673,7 +675,9 @@ export default function PrepaidRoute() {
                   <li key={s.code}>{s.fileName}</li>
                 ))}
               </ul>
-              {!sources && <p>Loading source file guidelines…</p>}
+              {!sources && (
+                <WorkspaceLoading label="Loading file guidelines..." compact />
+              )}
             </div>
             <input
               ref={input}
