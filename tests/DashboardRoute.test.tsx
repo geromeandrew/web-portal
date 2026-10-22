@@ -17,8 +17,17 @@ const auth = vi.hoisted(() => ({
     createdAt: "2026-01-01T00:00:00.000Z",
     isAdmin: false,
     modules: [
-      "bss_billcycle_glob", "bss_billcycle_inov", "bss_billcycle_bayn", "memo_sst", "prepaid_reclass",
-    ].map((moduleId) => ({ moduleId, moduleName: moduleId, routePath: "/", accessLevel: "BUSINESS_USER" as const })),
+      "bss_billcycle_glob",
+      "bss_billcycle_inov",
+      "bss_billcycle_bayn",
+      "memo_sst",
+      "prepaid_reclass",
+    ].map((moduleId) => ({
+      moduleId,
+      moduleName: moduleId,
+      routePath: "/",
+      accessLevel: "BUSINESS_USER" as const,
+    })),
   },
 }));
 
@@ -53,7 +62,7 @@ describe("DashboardRoute", () => {
     });
 
     expect(container.textContent).toContain("Hello, Juan!");
-    expect(container.querySelectorAll("article")).toHaveLength(6);
+    expect(container.querySelectorAll("article")).toHaveLength(5);
     expect(container.textContent).toContain("BSS Bill Cycle - Globe");
     expect(container.textContent).toContain("Prepaid Re-Class");
     expect(

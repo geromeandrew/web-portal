@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  CheckCircle2,
   ChevronRight,
   FileText,
   LoaderCircle,
@@ -22,42 +21,73 @@ import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
 import { validateFileSize } from "../lib/uploadClient";
 import sheetsIcon from "../assets/sheets-icon.svg";
+import ActivityFileRow from "./ActivityFileRow";
+import ActivityTableHead from "./ActivityTableHead";
+import { WorkspaceLoading } from "./WorkspaceLoading";
+import { useWorkspaceGuidelines } from "../lib/useWorkspaceGuidelines";
+import { ActivityColumns, UploadStatus } from "./UploadStatus";
+import { formatBillCycleUploadTimestamp } from "../lib/billCycleWorkspace";
 import { EmptyActivityState } from "./EmptyActivityState";
 import WorkspaceShell, { workspaceUi } from "./WorkspaceShell";
 
-type Props = { workspace: WorkspaceDefinition; history: "flat" | "batches" };
+type Props = {
+  workspace: WorkspaceDefinition;
+  history: "flat" | "batches";
+  pipelineCode?: string;
+};
 type FlatRow = {
   expectedFileName: string;
   originalName: string;
   readAt: string;
+  removedAt?: string | null;
+  objectKey: string;
   batch: ProcessingPipelineUploadBatchDto;
 };
 
-const date = (value: string | null | undefined) =>
-  value
-    ? new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }).format(new Date(value))
-    : "—";
 const batchLabel = (value: string) =>
   `Batch_${new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)).replaceAll("/", "")}`;
 
 function matches(file: File, requirement: ProcessingPipelineFileDto) {
   const name = file.name.toLowerCase();
   const expected = requirement.expectedFileName.toLowerCase();
-  if (requirement.match !== "glob") return name === expected;
+  if (requirement.match !== "glob") {
+    // Windows can hide the existing extension when a user renames a workbook.
+    // Accept repeated Excel extensions only when the full mapped stem matches.
+    return (
+      name === expected || name.replace(/(?:\.xlsx){2,}$/, ".xlsx") === expected
+    );
+  }
   const pattern = `^${expected
-    .replace(/[.+^${}()|[\\]\\]/g, "\\$&")
-    .replaceAll("*", ".*")
-    .replaceAll("?", ".")}$`;
+    .split("*")
+    .map((part) =>
+      part
+        .split("?")
+        .map((literal) => literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("."),
+    )
+    .join(".*")}$`;
   return new RegExp(pattern, "i").test(file.name);
 }
 
-export default function MappedUploadWorkspace({ workspace, history }: Props) {
+export default function MappedUploadWorkspace({
+  workspace,
+  history,
+  pipelineCode: initialPipelineCode,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [pipelineCode, setPipelineCode] = useState<string | null>(null);
+  const uploadInProgress = useRef(false);
+  const removalInProgress = useRef(false);
+  const [removalRequest, setRemovalRequest] = useState<
+    ProcessingPipelineUploadBatchDto["files"][number] | null
+  >(null);
+  const [removing, setRemoving] = useState(false);
+  const [pipelineCode, setPipelineCode] = useState<string | null>(
+    initialPipelineCode ?? null,
+  );
+  const { guidelines, loadingGuidelines, acceptInventory } =
+    useWorkspaceGuidelines(pipelineCode);
+  const loadVersion = useRef(0);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [files, setFiles] = useState<ProcessingPipelineFileDto[]>([]);
   const [batches, setBatches] = useState<ProcessingPipelineUploadBatchDto[]>(
     [],
@@ -68,30 +98,70 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
-  const load = useCallback(async (code: string) => {
-    const fileData = await apiRequest<ProcessingPipelineFileListDto>(
-      `/processing-pipelines/${encodeURIComponent(code)}/files`,
-    );
-    setFiles(fileData.files);
-    try {
-      const batchData = await apiRequest<{
-        batches: ProcessingPipelineUploadBatchDto[];
-      }>(`/processing-pipelines/${encodeURIComponent(code)}/upload-batches`);
-      setBatches(batchData.batches);
-      setNotice(null);
-    } catch (error) {
-      setBatches([]);
-      setNotice(
-        error instanceof Error
-          ? `File mappings loaded, but upload activity could not be loaded: ${error.message}`
-          : "File mappings loaded, but upload activity could not be loaded.",
-      );
-    }
-  }, []);
+  const load = useCallback(
+    async (code: string, signal?: AbortSignal) => {
+      const version = ++loadVersion.current;
+      const current = () => !signal?.aborted && version === loadVersion.current;
+      setLoading(true);
+      setHistoryLoading(true);
+      // Neither history nor guidelines depend on the S3 inventory completing.
+      const [fileResult, historyResult] = await Promise.allSettled([
+        apiRequest<ProcessingPipelineFileListDto>(
+          `/processing-pipelines/${encodeURIComponent(code)}/files`,
+          { signal },
+        )
+          .then((result) => {
+            if (current()) {
+              setFiles(result.files);
+              acceptInventory(code, result.files);
+            }
+          })
+          .finally(() => {
+            if (current()) setLoading(false);
+          }),
+        apiRequest<{ batches: ProcessingPipelineUploadBatchDto[] }>(
+          `/processing-pipelines/${encodeURIComponent(code)}/upload-batches`,
+          { signal },
+        )
+          .then((result) => {
+            if (current()) setBatches(result.batches);
+          })
+          .finally(() => {
+            if (current()) setHistoryLoading(false);
+          }),
+      ]);
+      if (!current()) return;
+      if (fileResult.status === "rejected") throw fileResult.reason;
+      if (historyResult.status === "rejected") {
+        setBatches([]);
+        setNotice(
+          historyResult.reason instanceof Error
+            ? `File mappings loaded, but upload activity could not be loaded: ${historyResult.reason.message}`
+            : "File mappings loaded, but upload activity could not be loaded.",
+        );
+      } else setNotice(null);
+    },
+    [acceptInventory],
+  );
 
   useEffect(() => {
     let active = true;
-    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines")
+    const controller = new AbortController();
+    if (initialPipelineCode) {
+      setPipelineCode(initialPipelineCode);
+      void load(initialPipelineCode, controller.signal).catch((error) => {
+        if (!controller.signal.aborted)
+          setNotice(
+            error instanceof Error
+              ? error.message
+              : "Workspace files could not be loaded.",
+          );
+      });
+      return () => controller.abort();
+    }
+    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines", {
+      signal: controller.signal,
+    })
       .then(async (catalog) => {
         const code = resolveWorkspacePipelineCode(
           workspace.id,
@@ -102,13 +172,14 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
             setPipelineCode(null);
             setFiles([]);
             setLoading(false);
+            setHistoryLoading(false);
             setNotice(null);
           }
           return;
         }
         if (!active) return;
         setPipelineCode(code);
-        await load(code);
+        await load(code, controller.signal);
         if (active) setLoading(false);
       })
       .catch((error) => {
@@ -119,18 +190,28 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
               : "Workspace configuration could not be loaded.",
           );
           setLoading(false);
+          setHistoryLoading(false);
         }
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [load, workspace.id]);
+  }, [load, workspace.id, initialPipelineCode]);
 
   const upload = async (selected: FileList | File[]) => {
-    if (!pipelineCode || uploading.length) return;
+    if (
+      !pipelineCode ||
+      loading ||
+      uploadInProgress.current ||
+      removalInProgress.current
+    )
+      return;
     const chosen = Array.from(selected);
     if (!chosen.length) return;
-    const sizeError = chosen.map((file) => validateFileSize(file)).find(Boolean);
+    const sizeError = chosen
+      .map((file) => validateFileSize(file))
+      .find(Boolean);
     if (sizeError) {
       setNotice(sizeError);
       return;
@@ -147,12 +228,20 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
       return;
     }
     if (
-      new Set(chosen.map((file) => file.name.toLowerCase())).size !==
-      chosen.length
+      new Set(
+        assignments.map(({ file, expected }) =>
+          (expected!.match === "glob"
+            ? file.name
+            : expected!.expectedFileName
+          ).toLowerCase(),
+        ),
+      ).size !== chosen.length
     ) {
       setNotice("Duplicate files cannot be uploaded in the same batch.");
       return;
     }
+    uploadInProgress.current = true;
+    let uploadError: string | null = null;
     try {
       setNotice(null);
       setUploading(chosen.map((file) => file.name));
@@ -173,17 +262,66 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
           `/processing-pipelines/${encodeURIComponent(pipelineCode)}/files`,
           { method: "POST", body },
         );
-        setUploading((current) => current.filter((name) => name !== file.name));
+        // Keep the operation locked until all files and activity are refreshed.
       }
+    } catch (error) {
+      uploadError =
+        error instanceof Error
+          ? error.message
+          : "A file could not be uploaded.";
+    } finally {
+      // A failed batch can still have successful files. Refresh those before retrying.
+      try {
+        await load(pipelineCode);
+      } catch (error) {
+        uploadError ??=
+          error instanceof Error
+            ? error.message
+            : "Workspace files could not be loaded.";
+      }
+      if (uploadError) setNotice(uploadError);
+      uploadInProgress.current = false;
+      setUploading([]);
+    }
+  };
+
+  const removeFile = async () => {
+    if (
+      !pipelineCode ||
+      !removalRequest ||
+      removalInProgress.current ||
+      uploadInProgress.current
+    )
+      return;
+    removalInProgress.current = true;
+    setRemoving(true);
+    let removed = false;
+    try {
+      await apiRequest(
+        `/processing-pipelines/${encodeURIComponent(pipelineCode)}/files?${new URLSearchParams({ key: removalRequest.objectKey })}`,
+        { method: "DELETE" },
+      );
+      removed = true;
+      // Immediately disable all history entries for the deleted current object.
+      setBatches((current) =>
+        current.map((batch) => ({
+          ...batch,
+          files: batch.files.map((file) =>
+            file.objectKey === removalRequest.objectKey
+              ? { ...file, removedAt: new Date().toISOString() }
+              : file,
+          ),
+        })),
+      );
+      setRemovalRequest(null);
       await load(pipelineCode);
     } catch (error) {
       setNotice(
-        error instanceof Error
-          ? error.message
-          : "A file could not be uploaded.",
+        `${removed ? "File removed, but activity could not be refreshed: " : ""}${error instanceof Error ? error.message : "The file could not be removed."}`,
       );
     } finally {
-      setUploading([]);
+      removalInProgress.current = false;
+      setRemoving(false);
     }
   };
 
@@ -194,7 +332,12 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
       ),
     [batches],
   );
-  const disabled = !pipelineCode || !files.length || Boolean(uploading.length);
+  const disabled =
+    !pipelineCode ||
+    loading ||
+    !files.length ||
+    Boolean(uploading.length) ||
+    removing;
   return (
     <WorkspaceShell
       title={workspace.title}
@@ -213,34 +356,38 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
       <div className={workspaceUi.grid}>
         <section
           className={`${workspaceUi.panel} ${workspaceUi.uploadPanel}`}
+          aria-busy={loading}
           aria-labelledby="file-upload-heading"
         >
           <h2 id="file-upload-heading" className={workspaceUi.panelHeading}>
             FILE UPLOAD
           </h2>
           <div className={workspaceUi.guidance}>
-            <div className="flex items-center gap-2 font-elliot text-[12px] font-bold text-[#171b24] 2xl:gap-3 2xl:text-[14px]">
+            <div className={workspaceUi.guidanceTitle}>
               <img
                 src={fileGuidelinesIcon}
                 alt=""
-                className="h-5 w-5 2xl:h-6 2xl:w-6"
+                className={workspaceUi.guidanceIcon}
               />
               File Guidelines
             </div>
-            <p className="mt-3 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-4 2xl:text-[13px] 2xl:leading-5">
+            <p className={workspaceUi.guidanceText}>
               All files must follow the correct file name convention:
             </p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-2 2xl:space-y-1 2xl:pl-5 2xl:text-[13px] 2xl:leading-5">
-              {files.length ? (
-                files.map((file) => (
+            <ul className={workspaceUi.guidanceList}>
+              {guidelines.length ? (
+                guidelines.map((file) => (
                   <li key={file.id}>{file.expectedFileName}</li>
                 ))
-              ) : (
-                <li>
-                  {loading
-                    ? "Loading file mappings."
-                    : "No mapped files are configured."}
+              ) : loading || loadingGuidelines ? (
+                <li className="list-none">
+                  <WorkspaceLoading
+                    label="Loading file guidelines..."
+                    compact
+                  />
                 </li>
+              ) : (
+                <li>No mapped files are configured.</li>
               )}
             </ul>
           </div>
@@ -272,24 +419,28 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
             className={`${workspaceUi.dropZone} ${dragging ? "border-[#087dca] bg-[#eef8ff]" : ""} disabled:cursor-not-allowed disabled:opacity-55`}
           >
             <>
-              {uploading.length ? (
-                <LoaderCircle className="h-10 w-10 animate-spin text-[#4788f7]" />
+              {uploading.length || loading ? (
+                <LoaderCircle className={workspaceUi.uploadSpinner} />
               ) : (
                 <img
                   src={uploadFilesIcon}
                   alt=""
                   aria-hidden="true"
-                  className="h-10 w-auto 2xl:h-14"
+                  className={workspaceUi.uploadIcon}
                 />
               )}
             </>
-            <span className="mt-3 font-elliot text-[11px] font-bold text-[#087dca] 2xl:mt-4 2xl:text-[13px]">
-              {uploading.length
-                ? `Uploading ${uploading.length} file${uploading.length === 1 ? "" : "s"}`
-                : "Drop files here"}
+            <span className={workspaceUi.uploadLabel}>
+              {loading
+                ? "Loading workspace files..."
+                : uploading.length
+                  ? `Uploading ${uploading.length} file${uploading.length === 1 ? "" : "s"}`
+                  : "Drop files here"}
             </span>
-            <span className="font-elliot text-[11px] text-[#087dca] 2xl:text-[13px]">
-              or click to browse your computer
+            <span className={workspaceUi.uploadHint}>
+              {loading
+                ? "Preparing file upload"
+                : "or click to browse your computer"}
             </span>
           </button>
         </section>
@@ -313,6 +464,7 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
           ))}
           <section
             className={workspaceUi.panel}
+            aria-busy={historyLoading}
             aria-labelledby="activity-history-heading"
           >
             <div className={workspaceUi.activityHeader}>
@@ -323,14 +475,22 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
                 ACTIVITY HISTORY
               </h2>
             </div>
-            {history === "flat" ? (
+            {historyLoading ? (
+              <WorkspaceLoading label="Loading activity history..." />
+            ) : history === "flat" ? (
               flatRows.length ? (
-                <FlatHistory rows={flatRows} />
+                <FlatHistory
+                  rows={flatRows}
+                  onRemove={setRemovalRequest}
+                  busy={loading || removing || Boolean(uploading.length)}
+                />
               ) : (
                 <EmptyActivityState />
               )
             ) : batches.length ? (
               <BatchHistory
+                onRemove={setRemovalRequest}
+                busy={loading || removing || Boolean(uploading.length)}
                 batches={batches}
                 expanded={expanded}
                 onToggle={(id) =>
@@ -347,64 +507,105 @@ export default function MappedUploadWorkspace({ workspace, history }: Props) {
           </section>
         </div>
       </div>
+      {removalRequest ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm removing uploaded files"
+          className="fixed inset-0 z-50 grid place-items-center bg-[#0e1522]/30 p-5"
+        >
+          <section className="w-full max-w-sm rounded-[8px] bg-white p-6 shadow-2xl">
+            <h2 className="font-elliot text-[17px] font-bold">
+              Remove uploaded file?
+            </h2>
+            <p className="mt-2 break-words text-[12px] leading-5 text-slate-500">
+              This permanently removes {removalRequest.originalName} from this
+              workspace.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => setRemovalRequest(null)}
+                className="focus-ring rounded px-4 py-2 text-[12px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => void removeFile()}
+                className="focus-ring rounded bg-[#d84a4a] px-4 py-2 text-[12px] font-bold text-white disabled:opacity-50"
+              >
+                {removing ? "Removing" : "Remove"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </WorkspaceShell>
   );
 }
 
-function FlatHistory({ rows }: { rows: FlatRow[] }) {
+type HistoryFile = ProcessingPipelineUploadBatchDto["files"][number];
+type HistoryActions = { onRemove(file: HistoryFile): void; busy: boolean };
+
+function RemoveFileButton({
+  file,
+  onRemove,
+  busy,
+}: HistoryActions & { file: HistoryFile }) {
+  return (
+    <button
+      type="button"
+      disabled={busy || Boolean(file.removedAt)}
+      aria-label={`Remove ${file.originalName}`}
+      onClick={() => onRemove(file)}
+      className="focus-ring grid h-6 w-6 place-items-center rounded text-[#1689df] disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function FlatHistory({
+  rows,
+  ...actions
+}: HistoryActions & { rows: FlatRow[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[650px] text-left">
-        <thead className="bg-[#f1f5fd] font-elliot text-[10px] font-bold uppercase text-[#4165a8]">
-          <tr>
-            <th className="px-7 py-3">File Name</th>
-            <th className="px-4 py-3">Uploaded By</th>
-            <th className="px-4 py-3">Upload</th>
-            <th className="px-4 py-3">Preload</th>
-            <th className="px-4 py-3">Postload</th>
-          </tr>
-        </thead>
+      <table className={workspaceUi.table}>
+        <ActivityColumns />
+        <ActivityTableHead label="File Name" />
         <tbody>
-          {rows.length ? (
-            rows.map((row, index) => (
-              <tr
-                key={`${row.batch.id}-${row.expectedFileName}-${index}`}
-                className="border-b border-[#dce3ed]"
-              >
-                <td className="px-7 py-3 font-elliot text-[12px]">
-                  <span className="inline-flex items-center gap-2">
-                    <img src={sheetsIcon} alt="" className="h-3.5" />
-                    {row.originalName}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-elliot text-[12px]">
-                  {row.batch.uploadedBy ?? "—"}
-                </td>
-                <td className="px-4 py-3 font-elliot text-[11px] text-[#17ad6b]">
-                  <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />
-                  Read{" "}
-                  <small className="block text-[#4165a8]">
-                    {date(row.readAt)}
-                  </small>
-                </td>
-                <td className="px-4 py-3 font-elliot text-[12px] text-[#8b96a6]">
-                  —
-                </td>
-                <td className="px-4 py-3 font-elliot text-[12px] text-[#8b96a6]">
-                  —
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td
-                colSpan={5}
-                className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500"
-              >
-                No upload activity is available.
+          {rows.map((row, index) => (
+            <tr
+              key={`${row.batch.id}-${row.expectedFileName}-${index}`}
+              className="border-b border-[#dce3ed] bg-white"
+            >
+              <td className={`${workspaceUi.tableCell} break-words px-7 py-3`}>
+                <span className="flex items-center gap-2">
+                  <img src={sheetsIcon} alt="" className="h-3.5 shrink-0" />
+                  {row.originalName}
+                </span>
+              </td>
+              <td className={workspaceUi.tableUploader}>
+                {row.batch.uploadedBy ?? "-"}
+              </td>
+              <td className={workspaceUi.tableValue}>
+                {row.removedAt ? (
+                  "Removed"
+                ) : (
+                  <UploadStatus readAt={row.readAt} />
+                )}
+              </td>
+              <td className={workspaceUi.tablePlaceholder}>-</td>
+              <td className={workspaceUi.tablePlaceholder}>-</td>
+              <td className={workspaceUi.tableActions}>
+                <RemoveFileButton file={row} {...actions} />
               </td>
             </tr>
-          )}
+          ))}
         </tbody>
       </table>
     </div>
@@ -415,113 +616,85 @@ function BatchHistory({
   batches,
   expanded,
   onToggle,
-}: {
+  ...actions
+}: HistoryActions & {
   batches: ProcessingPipelineUploadBatchDto[];
   expanded: Set<string>;
   onToggle(id: string): void;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[650px] text-left">
-        <thead className="bg-[#f1f5fd] font-elliot text-[10px] font-bold uppercase text-[#4165a8]">
-          <tr>
-            <th className="px-7 py-3">Batch Number</th>
-            <th className="px-4 py-3">Uploaded By</th>
-            <th className="px-4 py-3">Upload</th>
-            <th className="px-4 py-3">Preload</th>
-            <th className="px-4 py-3">Postload</th>
-          </tr>
-        </thead>
+      <table className={workspaceUi.table}>
+        <ActivityColumns />
+        <ActivityTableHead label="Batch Number" />
         <tbody>
-          {batches.length ? (
-            batches.map((batch) => (
-              <FragmentBatch
-                key={batch.id}
-                batch={batch}
-                expanded={expanded.has(batch.id)}
-                onToggle={() => onToggle(batch.id)}
-              />
-            ))
-          ) : (
-            <tr>
-              <td
-                colSpan={5}
-                className="px-7 py-10 text-center font-elliot text-[12px] text-slate-500"
-              >
-                No batch activity is available.
-              </td>
-            </tr>
-          )}
+          {batches.map((batch) => (
+            <FragmentBatch
+              key={batch.id}
+              batch={batch}
+              expanded={expanded.has(batch.id)}
+              onToggle={() => onToggle(batch.id)}
+              {...actions}
+            />
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
+
 function FragmentBatch({
   batch,
   expanded,
   onToggle,
-}: {
+  ...actions
+}: HistoryActions & {
   batch: ProcessingPipelineUploadBatchDto;
   expanded: boolean;
   onToggle(): void;
 }) {
   return (
     <>
-      <tr className="border-b border-[#dce3ed]">
-        <td className="px-7 py-3 font-elliot text-[12px] font-bold">
+      <tr className="border-b border-[#dce3ed] bg-white">
+        <td className={workspaceUi.tableGroupName}>
           <button
             type="button"
+            aria-expanded={expanded}
             onClick={onToggle}
-            className="inline-flex items-center gap-3"
+            className={workspaceUi.tableToggle}
           >
             <ChevronRight
-              className={`h-4 w-4 text-[#1689df] ${expanded ? "rotate-90" : ""}`}
+              className={`h-4 w-4 shrink-0 text-[#1689df] ${expanded ? "rotate-90" : ""}`}
             />
             {batchLabel(batch.createdAt)}
           </button>
         </td>
-        <td className="px-4 py-3 font-elliot text-[12px]">
-          {batch.uploadedBy ?? "—"}
+        <td className={workspaceUi.tableUploader}>{batch.uploadedBy ?? "-"}</td>
+        <td className={workspaceUi.tableTimestamp}>
+          {formatBillCycleUploadTimestamp(batch.createdAt)}
         </td>
-        <td className="px-4 py-3 font-elliot text-[12px]">
-          {date(batch.createdAt)}
-        </td>
-        <td className="px-4 py-3 font-elliot text-[12px] text-[#8b96a6]">—</td>
-        <td className="px-4 py-3 font-elliot text-[12px] text-[#8b96a6]">—</td>
+        <td className={workspaceUi.tablePlaceholder}>-</td>
+        <td className={workspaceUi.tablePlaceholder}>-</td>
+        <td className={workspaceUi.tableActions} />
       </tr>
-      {expanded ? (
-        <tr>
-          <td colSpan={5} className="px-7 py-3">
-            <div className="overflow-hidden rounded-[5px] border border-[#dce3ed]">
-              {batch.files.map((file) => (
-                <div
-                  key={file.expectedFileName}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-[#e6ebf2] px-4 py-3 font-elliot text-[11px] last:border-0"
-                >
-                  <span className="flex items-center gap-2">
-                    <img src={sheetsIcon} alt="" className="h-3.5" />
-                    {file.originalName}
-                  </span>
-                  <span className="text-[#17ad6b]">
-                    <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />
-                    Read
-                  </span>
-                  <span className="text-[#8b96a6]">—</span>
-                  <span className="text-[#8b96a6]">—</span>
-                  <button
-                    disabled
-                    title="Removing pipeline files is not available through the current API."
-                    className="text-[#1689df] opacity-60"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </td>
-        </tr>
-      ) : null}
+      {expanded
+        ? batch.files.map((file, index) => (
+            <ActivityFileRow
+              key={file.expectedFileName}
+              first={index === 0}
+              last={index === batch.files.length - 1}
+              fileName={file.originalName}
+              status={
+                file.removedAt ? (
+                  "Removed"
+                ) : (
+                  <UploadStatus readAt={file.readAt} />
+                )
+              }
+              action={<RemoveFileButton file={file} {...actions} />}
+            />
+          ))
+        : null}
     </>
   );
 }

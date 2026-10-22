@@ -30,10 +30,12 @@ import type {
   ProcessingPipelineStage,
 } from "../lib/apiTypes";
 import BillCycleWorkspace from "../components/BillCycleWorkspace";
+import { RequireModule } from "../auth/RequireModule";
 import {
   isBillCycleWorkspace,
   resolveWorkspacePipelineCode,
   workspaces,
+  workspaceModuleId,
 } from "../lib/workspaces";
 
 const stages: { code: ProcessingPipelineStage; label: string }[] = [
@@ -76,9 +78,26 @@ export default function ProcessingPipelinesRoute() {
   const workspace = workspaces.find((item) => item.id === workspaceId);
 
   if (isBillCycleWorkspace(workspace))
-    return <BillCycleWorkspace workspace={workspace} />;
+    return (
+      <RequireModule moduleId={workspaceModuleId(workspace)!}>
+        <BillCycleWorkspace
+          key={workspace.id}
+          workspace={workspace}
+          pipelineCode={workspaceModuleId(workspace)!}
+        />
+      </RequireModule>
+    );
   if (workspace?.kind === "pipeline")
-    return <MappedUploadWorkspace workspace={workspace} history="batches" />;
+    return (
+      <RequireModule moduleId={workspaceModuleId(workspace)!}>
+        <MappedUploadWorkspace
+          key={workspace.id}
+          workspace={workspace}
+          pipelineCode={workspaceModuleId(workspace)!}
+          history="batches"
+        />
+      </RequireModule>
+    );
   return <Navigate to="/" replace />;
 }
 

@@ -117,6 +117,75 @@ a {
   }
 }
 
+/* Draw one inset file group without changing the parent table's column grid. */
+.activity-file-row > td {
+  position: relative;
+  padding: 12px 16px;
+  background: #f8fbff;
+}
+
+.activity-file-row > td::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #ffffff;
+  border-bottom: 1px solid #e6ebf2;
+}
+
+.activity-file-row > .activity-file-name {
+  padding-left: 52px;
+}
+
+.activity-file-row > .activity-file-name::before {
+  left: 28px;
+  border-left: 2px solid #dce3ed;
+}
+
+.activity-file-row > .activity-file-action {
+  padding-right: 24px;
+  padding-left: 8px;
+}
+
+.activity-file-row > .activity-file-action::before {
+  right: 16px;
+  border-right: 1px solid #dce3ed;
+}
+
+.activity-file-row[data-first="true"] > td {
+  padding-top: 20px;
+}
+
+.activity-file-row[data-first="true"] > td::before {
+  top: 8px;
+  border-top: 1px solid #dce3ed;
+}
+
+.activity-file-row[data-last="true"] > td {
+  padding-bottom: 24px;
+}
+
+.activity-file-row[data-last="true"] > td::before {
+  bottom: 12px;
+  border-bottom-color: #dce3ed;
+}
+
+.activity-file-row[data-first="true"] > td:first-child::before {
+  border-top-left-radius: 6px;
+}
+
+.activity-file-row[data-first="true"] > td:last-child::before {
+  border-top-right-radius: 6px;
+}
+
+.activity-file-row[data-last="true"] > td:first-child::before {
+  border-bottom-left-radius: 6px;
+}
+
+.activity-file-row[data-last="true"] > td:last-child::before {
+  border-bottom-right-radius: 6px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

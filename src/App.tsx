@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./auth/RequireAuth";
 import { RequireAdmin } from "./auth/RequireAdmin";
+import { RequireModule } from "./auth/RequireModule";
 import AdminUsersRoute from "./routes/AdminUsersRoute";
 import AppShell from "./components/AppShell";
 import AprmRoute from "./routes/AprmRoute";
@@ -29,21 +30,46 @@ export default function App() {
         }
       >
         <Route path="/" element={<DashboardRoute />} />
-        <Route path="/administrator/users" element={<RequireAdmin><AdminUsersRoute /></RequireAdmin>} />
+        <Route
+          path="/administrator/users"
+          element={
+            <RequireAdmin>
+              <AdminUsersRoute />
+            </RequireAdmin>
+          }
+        />
         <Route
           path="/prepaid"
           element={<Navigate to={prepaidWorkspaceHref} replace />}
         />
-        <Route path="/prepaid/:section" element={<PrepaidRoute />} />
+        <Route
+          path="/prepaid/:section"
+          element={
+            <RequireModule moduleId="prepaid_reclass">
+              <PrepaidRoute pipelineCode="prepaid_reclass" />
+            </RequireModule>
+          }
+        />
         <Route
           path="/prepaid/:section/:region/:variant"
-          element={<PrepaidRoute />}
+          element={
+            <RequireModule moduleId="prepaid_reclass">
+              <PrepaidRoute pipelineCode="prepaid_reclass" />
+            </RequireModule>
+          }
         />
         <Route
           path="/memo"
           element={<Navigate to="/memo/file-upload" replace />}
         />
-        <Route path="/memo/file-upload" element={<MemoRoute />} />
+        <Route
+          path="/memo/file-upload"
+          element={
+            <RequireModule moduleId="memo_sst">
+              <MemoRoute />
+            </RequireModule>
+          }
+        />
         <Route path="/aprm" element={<AprmRoute />} />
         <Route path="/aprm/:area" element={<AprmRoute />} />
         <Route
