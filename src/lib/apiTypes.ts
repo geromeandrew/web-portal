@@ -4,7 +4,12 @@ export type UserDto = {
   displayName: string | null;
   createdAt: string;
   isAdmin: boolean;
-  modules: { moduleId: string; moduleName: string; routePath: string; accessLevel: "BUSINESS_USER" }[];
+  modules: {
+    moduleId: string;
+    moduleName: string;
+    routePath: string;
+    accessLevel: "BUSINESS_USER";
+  }[];
 };
 
 export type UploadDto = {
@@ -58,7 +63,13 @@ export type ProcessingPipelineUploadBatchDto = {
   id: string;
   createdAt: string;
   uploadedBy: string | null;
-  files: { expectedFileName: string; originalName: string; objectKey: string; readAt: string }[];
+  files: {
+    expectedFileName: string;
+    originalName: string;
+    objectKey: string;
+    readAt: string;
+    removedAt?: string | null;
+  }[];
 };
 
 export type ProcessingPipelineFileListDto = {

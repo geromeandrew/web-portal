@@ -14,7 +14,6 @@ import type {
   ProcessingPipelineFileListDto,
 } from "../lib/apiTypes";
 import {
-  formatBillCycleUploadDate,
   formatBillCycleUploadTimestamp,
   groupFilesByBillCycle,
   sortBillCyclesAscending,
@@ -28,42 +27,13 @@ import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
 import { validateFileSize } from "../lib/uploadClient";
-import sheetsIcon from "../assets/sheets-icon.svg";
+import ActivityFileRow from "./ActivityFileRow";
+import { ActivityColumns, UploadStatus } from "./UploadStatus";
+import { workspaceUi } from "./WorkspaceShell";
+import ActivityTableHead from "./ActivityTableHead";
+import { WorkspaceLoading } from "./WorkspaceLoading";
+import { useWorkspaceGuidelines } from "../lib/useWorkspaceGuidelines";
 import { EmptyActivityState } from "./EmptyActivityState";
-
-const workspaceUi = {
-  page: "relative isolate -mx-5 -my-10 min-h-[calc(100vh-72px)] overflow-hidden bg-[#f2f7fe] px-5 py-11 sm:-mx-8 sm:-my-12 sm:px-8 sm:py-12 lg:-mx-0 lg:-my-14 lg:px-0 lg:py-8",
-  content: "relative mx-auto w-full max-w-none",
-  title:
-    "font-elliot text-[26px] font-bold leading-8 tracking-[-0.025em] text-[#0e1522] 2xl:text-[30px] 2xl:leading-10",
-  description:
-    "mt-1 font-elliot text-[13px] leading-5 text-[#1c2431] 2xl:text-[15px] 2xl:leading-6",
-  grid: "mt-12 grid items-start gap-2 xl:grid-cols-[412fr_806fr] 2xl:mt-14 2xl:gap-3",
-  panel:
-    "overflow-hidden rounded-[8px] bg-white shadow-[0_2px_8px_rgba(20,47,89,0.08)] ring-1 ring-[#e4eaf2]",
-  panelHeading:
-    "font-elliot text-[11px] font-bold text-[#171b24] 2xl:text-[13px]",
-  uploadPanel: "min-h-[529px] p-5 2xl:min-h-[600px] 2xl:p-6",
-  activityPanel: "flex flex-col",
-  activityBody: "overflow-x-auto",
-  guidance:
-    "mt-4 rounded-[5px] bg-[#f6f9fd] px-4 py-4 2xl:mt-5 2xl:px-5 2xl:py-5",
-  cycleSelect:
-    "focus-ring mt-3 h-[35px] w-full rounded-[5px] border border-[#b8c1cf] bg-white px-3 font-elliot text-[12px] text-[#5c6675] 2xl:mt-4 2xl:h-[42px] 2xl:px-4 2xl:text-[14px]",
-  dropZone:
-    "focus-ring mt-3 flex min-h-[267px] w-full flex-col items-center justify-center rounded-[5px] border border-dashed border-[#79baff] bg-[#f8fcff] px-6 text-center transition-colors 2xl:mt-5 2xl:min-h-[323px]",
-  cycleMeta:
-    "mt-2 font-elliot text-[10px] font-semibold text-[#087dca] 2xl:text-[12px]",
-  activityHeader:
-    "flex min-h-[37px] items-center justify-between gap-3 bg-[#e8eef8] px-6 2xl:min-h-[46px] 2xl:px-7",
-  activityFilter:
-    "focus-ring h-[25px] rounded-[3px] border border-[#b8c1cf] bg-white px-2 font-elliot text-[10px] text-[#252d39] 2xl:h-[31px] 2xl:px-3 2xl:text-[12px]",
-  tableHead:
-    "bg-[#f1f5fd] font-elliot text-[10px] font-bold uppercase text-[#4165a8] 2xl:text-[12px]",
-  tableCell: "font-elliot text-[12px] text-[#171b24] 2xl:text-[14px]",
-  successToast:
-    "absolute left-1/2 top-[66px] z-20 flex -translate-x-1/2 items-center gap-2 rounded-[5px] bg-[#1fac6c] px-4 py-3 font-elliot text-[12px] text-white shadow-[0_5px_12px_rgba(22,104,68,0.18)] xl:left-[48%] 2xl:top-[82px] 2xl:px-5 2xl:py-4 2xl:text-[14px]",
-};
 
 type UploadQueueEntry = { fileName: string; complete: boolean };
 type UploadProgress = {
@@ -73,9 +43,6 @@ type UploadProgress = {
   complete: boolean;
   entries: UploadQueueEntry[];
 } | null;
-
-const expandedFileGridColumns =
-  "minmax(0, 48fr) minmax(0, 24fr) minmax(0, 10fr) minmax(0, 10fr) 2.25rem";
 
 function WorkspaceBackgroundIllustration() {
   return (
@@ -132,12 +99,18 @@ function UploadQueue({
 
 export default function BillCycleWorkspace({
   workspace,
+  pipelineCode: initialPipelineCode,
 }: {
   workspace: WorkspaceDefinition;
+  pipelineCode?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
-  const [pipelineCode, setPipelineCode] = useState<string | null>(null);
+  const [pipelineCode, setPipelineCode] = useState<string | null>(
+    initialPipelineCode ?? null,
+  );
+  const { guidelines, loadingGuidelines, acceptInventory } =
+    useWorkspaceGuidelines(pipelineCode);
   const [files, setFiles] = useState<ProcessingPipelineFileDto[]>([]);
   const [configured, setConfigured] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -163,31 +136,46 @@ export default function BillCycleWorkspace({
     return () => window.clearTimeout(timer);
   }, [uploadProgress?.complete]);
 
-  const loadFiles = useCallback(async (code: string) => {
-    setLoading(true);
-    try {
-      const result = await apiRequest<ProcessingPipelineFileListDto>(
-        `/processing-pipelines/${encodeURIComponent(code)}/files`,
-      );
-      setFiles(result.files);
-      setConfigured(result.configured);
-      setNotice(null);
-    } catch (error) {
-      setFiles([]);
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Workspace files could not be loaded.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loadFiles = useCallback(
+    async (code: string, signal?: AbortSignal) => {
+      setLoading(true);
+      try {
+        const result = await apiRequest<ProcessingPipelineFileListDto>(
+          `/processing-pipelines/${encodeURIComponent(code)}/files`,
+          { signal },
+        );
+        if (signal?.aborted) return;
+        setFiles(result.files);
+        acceptInventory(code, result.files);
+        setConfigured(result.configured);
+        setNotice(null);
+      } catch (error) {
+        if (signal?.aborted) return;
+        setFiles([]);
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Workspace files could not be loaded.",
+        );
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [acceptInventory],
+  );
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
-    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines")
+    if (initialPipelineCode) {
+      setPipelineCode(initialPipelineCode);
+      void loadFiles(initialPipelineCode, controller.signal);
+      return () => controller.abort();
+    }
+    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines", {
+      signal: controller.signal,
+    })
       .then((catalog) => {
         const resolvedCode = resolveWorkspacePipelineCode(
           workspace.id,
@@ -199,7 +187,7 @@ export default function BillCycleWorkspace({
           );
         if (!active) return;
         setPipelineCode(resolvedCode);
-        void loadFiles(resolvedCode);
+        void loadFiles(resolvedCode, controller.signal);
       })
       .catch((error) => {
         if (!active) return;
@@ -212,13 +200,17 @@ export default function BillCycleWorkspace({
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [loadFiles, workspace.id]);
+  }, [loadFiles, workspace.id, initialPipelineCode]);
 
   const cycles = useMemo(() => groupFilesByBillCycle(files), [files]);
   const cyclesAscending = useMemo(
-    () => sortBillCyclesAscending(cycles),
-    [cycles],
+    () => sortBillCyclesAscending(groupFilesByBillCycle(guidelines)),
+    [guidelines],
+  );
+  const selectedGuidanceGroup = cyclesAscending.find(
+    (group) => group.cycle === selectedCycle,
   );
   const selectedGroup = cycles.find((group) => group.cycle === selectedCycle);
   const visibleCycles =
@@ -232,9 +224,19 @@ export default function BillCycleWorkspace({
   );
 
   const uploadFiles = async (selected: FileList | File[]) => {
-    if (!pipelineCode || !selectedCycle || !selectedGroup || uploadProgress)
+    if (
+      !pipelineCode ||
+      loading ||
+      !selectedCycle ||
+      !selectedGroup ||
+      uploadAbortRef.current
+    )
       return;
-    const sizeError = Array.from(selected).map((file) => validateFileSize(file)).find(Boolean);
+    if (!selected.length) return;
+    setNotice(null);
+    const sizeError = Array.from(selected)
+      .map((file) => validateFileSize(file))
+      .find(Boolean);
     if (sizeError) {
       setNotice(sizeError);
       return;
@@ -301,7 +303,6 @@ export default function BillCycleWorkspace({
           ? error.message
           : "A file could not be uploaded.";
     } finally {
-      uploadAbortRef.current = null;
       await loadFiles(pipelineCode);
       if (completed > 0) {
         setExpandedCycles(new Set([selectedCycle]));
@@ -316,6 +317,7 @@ export default function BillCycleWorkspace({
           complete: index < completed,
         })),
       });
+      uploadAbortRef.current = null;
     }
   };
 
@@ -381,6 +383,7 @@ export default function BillCycleWorkspace({
 
         <div className={workspaceUi.grid}>
           <section
+            aria-busy={loading}
             className={`${workspaceUi.panel} ${workspaceUi.uploadPanel}`}
             aria-labelledby="file-upload-heading"
           >
@@ -388,28 +391,32 @@ export default function BillCycleWorkspace({
               FILE UPLOAD
             </h2>
             <div className={workspaceUi.guidance}>
-              <div className="flex items-center gap-2 font-elliot text-[12px] font-bold text-[#171b24] 2xl:gap-3 2xl:text-[14px]">
+              <div className={workspaceUi.guidanceTitle}>
                 <img
                   src={fileGuidelinesIcon}
                   alt=""
-                  className="h-5 w-5 2xl:h-6 2xl:w-6"
+                  className={workspaceUi.guidanceIcon}
                 />
                 File Guidelines
               </div>
-              <p className="mt-3 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-4 2xl:text-[13px] 2xl:leading-5">
+              <p className={workspaceUi.guidanceText}>
                 Select the bill cycle first. Files are checked by report
                 identity; entity and cycle suffixes are normalized to the
                 selected workspace and cycle when stored:
               </p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-2 2xl:space-y-1 2xl:pl-5 2xl:text-[13px] 2xl:leading-5">
-                {selectedGroup ? (
-                  selectedGroup.files.map((file) => (
-                    <li key={file.id}>{file.expectedFileName}</li>
-                  ))
-                ) : (
-                  <li>Select a bill cycle to see its required files.</li>
-                )}
-              </ul>
+              {(loading || loadingGuidelines) && !guidelines.length ? (
+                <WorkspaceLoading label="Loading file guidelines..." compact />
+              ) : (
+                <ul className={workspaceUi.guidanceList}>
+                  {selectedGuidanceGroup ? (
+                    selectedGuidanceGroup.files.map((file) => (
+                      <li key={file.id}>{file.expectedFileName}</li>
+                    ))
+                  ) : (
+                    <li>Select a bill cycle to see its required files.</li>
+                  )}
+                </ul>
+              )}
             </div>
 
             <label className="sr-only" htmlFor="bill-cycle-upload">
@@ -422,11 +429,17 @@ export default function BillCycleWorkspace({
                 setSelectedCycle(event.target.value);
                 setUploadProgress(null);
               }}
-              disabled={loading || !cycles.length}
+              disabled={
+                loadingGuidelines ||
+                !cyclesAscending.length ||
+                Boolean(uploadAbortRef.current)
+              }
               className={workspaceUi.cycleSelect}
             >
               <option value="">
-                {loading ? "Loading bill cycles" : "Bill Cycle"}
+                {loading && !guidelines.length
+                  ? "Loading bill cycles"
+                  : "Bill Cycle"}
               </option>
               {cyclesAscending.map((group) => (
                 <option key={group.cycle} value={group.cycle}>
@@ -434,10 +447,10 @@ export default function BillCycleWorkspace({
                 </option>
               ))}
             </select>
-            {selectedGroup ? (
+            {selectedGuidanceGroup ? (
               <p className={workspaceUi.cycleMeta}>
-                {selectedGroup.files.length} required files for Bill Cycle{" "}
-                {selectedGroup.cycle}
+                {selectedGuidanceGroup.files.length} required files for Bill
+                Cycle {selectedGuidanceGroup.cycle}
               </p>
             ) : null}
 
@@ -454,6 +467,7 @@ export default function BillCycleWorkspace({
             <button
               type="button"
               disabled={
+                loading ||
                 !selectedGroup ||
                 Boolean(
                   uploadProgress &&
@@ -475,27 +489,32 @@ export default function BillCycleWorkspace({
               }}
               className={`${workspaceUi.dropZone} ${dragging ? "border-[#087dca] bg-[#eef8ff]" : ""} disabled:cursor-not-allowed disabled:opacity-55`}
             >
-              {uploadProgress &&
-              !uploadProgress.complete &&
-              !uploadProgress.error ? (
-                <LoaderCircle className="h-10 w-10 animate-spin text-[#4788f7] 2xl:h-14 2xl:w-14" />
+              {loading ||
+              (uploadProgress &&
+                !uploadProgress.complete &&
+                !uploadProgress.error) ? (
+                <LoaderCircle className={workspaceUi.uploadSpinner} />
               ) : (
                 <img
                   src={uploadFilesIcon}
                   alt=""
                   aria-hidden="true"
-                  className="h-10 w-auto 2xl:h-14"
+                  className={workspaceUi.uploadIcon}
                 />
               )}
-              <span className="mt-3 font-elliot text-[11px] font-bold text-[#087dca] 2xl:mt-4 2xl:text-[13px]">
-                {uploadProgress &&
-                !uploadProgress.complete &&
-                !uploadProgress.error
-                  ? `Uploading ${uploadProgress.completed} of ${uploadProgress.total}`
-                  : "Drop files here"}
+              <span className={workspaceUi.uploadLabel}>
+                {loading
+                  ? "Loading workspace files..."
+                  : uploadProgress &&
+                      !uploadProgress.complete &&
+                      !uploadProgress.error
+                    ? `Uploading ${uploadProgress.completed} of ${uploadProgress.total}`
+                    : "Drop files here"}
               </span>
-              <span className="font-elliot text-[11px] text-[#087dca] 2xl:text-[13px]">
-                or click to browse your computer
+              <span className={workspaceUi.uploadHint}>
+                {loading
+                  ? "Preparing file upload"
+                  : "or click to browse your computer"}
               </span>
             </button>
             {uploadProgress && !uploadProgress.complete ? (
@@ -526,6 +545,7 @@ export default function BillCycleWorkspace({
             ) : null}
             <section
               className={`${workspaceUi.panel} ${workspaceUi.activityPanel}`}
+              aria-busy={loading}
               aria-labelledby="activity-history-heading"
             >
               <div className={workspaceUi.activityHeader}>
@@ -563,38 +583,14 @@ export default function BillCycleWorkspace({
                     }
                   />
                 ) : (
-                  <table className="w-full min-w-[600px] table-fixed border-collapse text-left">
-                    <colgroup>
-                      <col className="w-[24%]" />
-                      <col className="w-[24%]" />
-                      <col className="w-[24%]" />
-                      <col className="w-[10%]" />
-                      <col className="w-[10%]" />
-                      <col className="w-[8%]" />
-                    </colgroup>
-                    <thead className={workspaceUi.tableHead}>
-                      <tr>
-                        <th className="px-7 py-3 2xl:px-8 2xl:py-4">
-                          BATCH CYCLE
-                        </th>
-                        <th className="px-4 py-3 2xl:px-5 2xl:py-4">
-                          UPLOADED BY
-                        </th>
-                        <th className="px-4 py-3 2xl:px-5 2xl:py-4">UPLOAD</th>
-                        <th className="px-4 py-3 2xl:px-5 2xl:py-4">PRELOAD</th>
-                        <th className="px-4 py-3 2xl:px-5 2xl:py-4">
-                          POSTLOAD
-                        </th>
-                        <th className="w-10 px-2 py-3 2xl:w-12 2xl:py-4">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
+                  <table className={workspaceUi.table}>
+                    <ActivityColumns />
+                    <ActivityTableHead label="BATCH CYCLE" />
                     <tbody>
                       {loading ? (
                         <tr>
                           <td colSpan={6} className="px-7 py-10 text-center">
-                            <LoaderCircle className="mx-auto h-5 w-5 animate-spin text-[#087dca]" />
+                            <WorkspaceLoading label="Loading activity history..." />
                           </td>
                         </tr>
                       ) : !configured ? (
@@ -723,11 +719,12 @@ function ActivityRow({
   return (
     <>
       <tr className="border-b border-[#dce3ed] bg-white">
-        <td className={`${workspaceUi.tableCell} px-7 py-2.5 font-bold`}>
+        <td className={workspaceUi.tableGroupName}>
           <button
             type="button"
             onClick={onToggle}
-            className="focus-ring inline-flex items-center gap-3 rounded-sm"
+            aria-expanded={expanded}
+            className={workspaceUi.tableToggle}
           >
             <ChevronRight
               className={`h-4 w-4 text-[#1689df] transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -735,19 +732,15 @@ function ActivityRow({
             Bill Cycle {group.cycle}
           </button>
         </td>
-        <td
-          className={`${workspaceUi.tableCell} break-words px-4 py-3 leading-4`}
-        >
+        <td className={workspaceUi.tableUploader}>
           {newest?.uploadedBy ?? "-"}
         </td>
-        <td
-          className={`${workspaceUi.tableCell} whitespace-normal px-4 py-3 text-[10px] leading-4 2xl:text-[12px]`}
-        >
+        <td className={workspaceUi.tableTimestamp}>
           {formatBillCycleUploadTimestamp(group.latestUploadAt)}
         </td>
-        <td className={`${workspaceUi.tableCell} px-4 py-3`}>-</td>
-        <td className={`${workspaceUi.tableCell} px-4 py-3`}>-</td>
-        <td className="px-2 py-2.5">
+        <td className={workspaceUi.tableValue}>-</td>
+        <td className={workspaceUi.tableValue}>-</td>
+        <td className={workspaceUi.tableActions}>
           <button
             type="button"
             disabled={!removableFiles.length || removing}
@@ -766,15 +759,11 @@ function ActivityRow({
         </td>
       </tr>
       {expanded ? (
-        <tr className="border-b border-[#dce3ed] bg-[#fbfdff]">
-          <td colSpan={6} className="px-7 pb-5 pt-3">
-            <CycleFileDetails
-              files={group.files}
-              onRemove={onRemove}
-              removingKeys={removingKeys}
-            />
-          </td>
-        </tr>
+        <CycleFileDetails
+          files={group.files}
+          onRemove={onRemove}
+          removingKeys={removingKeys}
+        />
       ) : null}
     </>
   );
@@ -790,52 +779,23 @@ function CycleFileDetails({
   removingKeys: Set<string>;
 }) {
   return (
-    <div className="overflow-hidden rounded-[5px] border border-[#dce3ed] bg-white">
-      <div className="divide-y divide-[#e6ebf2]">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            style={{ gridTemplateColumns: expandedFileGridColumns }}
-            className="grid min-h-[36px] items-center px-3 font-elliot text-[11px] text-[#1f2937] 2xl:min-h-[44px] 2xl:px-4 2xl:text-[13px]"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <img
-                src={sheetsIcon}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-auto shrink-0"
-              />
-              <span className="truncate">
-                {file.matchedFileName ?? file.expectedFileName}
-              </span>
-            </div>
-            <span
-              className={
-                file.availability === "present"
-                  ? "font-medium text-[#17ad6b]"
-                  : "text-[#8b96a6]"
-              }
-            >
-              {file.availability === "present" ? (
-                <>
-                  <span>✓ Read</span>
-                  <small className="block whitespace-normal font-normal leading-4 text-[#4165a8]">
-                    {formatBillCycleUploadTimestamp(
-                      file.uploadedAt ?? file.lastModified,
-                    )}
-                  </small>
-                </>
-              ) : (
-                "-"
-              )}
-            </span>
-            <span className="text-[#8b96a6]">-</span>
-            <span className="text-[#8b96a6]">-</span>
+    <>
+      {files.map((file, index) => (
+        <ActivityFileRow
+          key={file.id}
+          first={index === 0}
+          last={index === files.length - 1}
+          fileName={file.matchedFileName ?? file.expectedFileName}
+          status={
+            <UploadStatus
+              present={file.availability === "present"}
+              readAt={file.uploadedAt ?? file.lastModified}
+            />
+          }
+          action={
             <button
               type="button"
-              disabled={
-                !file.key || (file.key ? removingKeys.has(file.key) : false)
-              }
+              disabled={!file.key || removingKeys.has(file.key)}
               onClick={() =>
                 onRemove([file], file.matchedFileName ?? file.expectedFileName)
               }
@@ -848,9 +808,9 @@ function CycleFileDetails({
                 <Trash2 className="h-3.5 w-3.5" />
               )}
             </button>
-          </div>
-        ))}
-      </div>
-    </div>
+          }
+        />
+      ))}
+    </>
   );
 }

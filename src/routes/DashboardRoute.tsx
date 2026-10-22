@@ -44,9 +44,17 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceDefinition }) {
           <h2 className={dashboardUi.cardTitle}>{workspace.title}</h2>
           <p className={dashboardUi.cardDescription}>{workspace.description}</p>
         </div>
-        <img src={dashboardUiIcon} alt="" aria-hidden="true" className={dashboardUi.icon} />
+        <img
+          src={dashboardUiIcon}
+          alt=""
+          aria-hidden="true"
+          className={dashboardUi.icon}
+        />
       </div>
-      <Link to={dashboardWorkspaceHref(workspace)} className={dashboardUi.action}>
+      <Link
+        to={dashboardWorkspaceHref(workspace)}
+        className={dashboardUi.action}
+      >
         Open workspace
       </Link>
     </article>
@@ -55,7 +63,9 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceDefinition }) {
 
 export default function DashboardRoute() {
   const { user } = useAuth();
-  const visibleWorkspaces = allowedWorkspaces(user?.modules?.map((module) => module.moduleId) ?? []);
+  const visibleWorkspaces = allowedWorkspaces(
+    user?.modules?.map((module) => module.moduleId) ?? [],
+  );
 
   return (
     <div className={dashboardUi.page}>
@@ -76,6 +86,12 @@ export default function DashboardRoute() {
             <WorkspaceCard key={workspace.id} workspace={workspace} />
           ))}
         </div>
+        {!visibleWorkspaces.length ? (
+          <p className="mt-8 text-sm text-slate-600">
+            You have no assigned workspaces. Contact an administrator to request
+            access.
+          </p>
+        ) : null}
       </section>
     </div>
   );

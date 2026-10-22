@@ -18,9 +18,13 @@ import uploadFilesIcon from "../assets/upload-files-icon.svg";
 import workspaceBackgroundIllustration from "../assets/workspace-background-illustration.png";
 import { apiRequest, downloadApiFile } from "../lib/apiClient";
 import { allocationHeaders, jvHeaders, layoutHeaders } from "../lib/demoData";
-import type { ProcessingPipelineCatalogDto, ProcessingPipelineFileListDto } from "../lib/apiTypes";
+import type {
+  ProcessingPipelineCatalogDto,
+  ProcessingPipelineFileListDto,
+} from "../lib/apiTypes";
 import { validateWorkflowFile } from "../lib/uploadClient";
 import { resolveWorkspacePipelineCode } from "../lib/workspaces";
+import { WorkspaceLoading } from "../components/WorkspaceLoading";
 
 const XLSX =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -200,7 +204,9 @@ function DataTable({
   );
 }
 
-export default function PrepaidRoute() {
+export default function PrepaidRoute({
+  pipelineCode: initialPipelineCode,
+}: { pipelineCode?: string } = {}) {
   const { section, region, variant } = useParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const legacyReviewTab =
@@ -218,7 +224,10 @@ export default function PrepaidRoute() {
   const [reviewTab, setReviewTab] = useState(legacyReviewTab);
   const [state, setState] = useState<State | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [pipelineCode, setPipelineCode] = useState<string | null>(null);
+  const [pipelineCode, setPipelineCode] = useState<string | null>(
+    initialPipelineCode ?? null,
+  );
+  const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -226,39 +235,78 @@ export default function PrepaidRoute() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [historyDate, setHistoryDate] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
-  const load = async (code = pipelineCode) => {
+  const load = async (code = pipelineCode, signal?: AbortSignal) => {
     if (!code) return;
-    const [next, pipelineFiles] = await Promise.all([
-      apiRequest<State>("/workflows/prepaid/state"),
-      apiRequest<ProcessingPipelineFileListDto>(`/processing-pipelines/${encodeURIComponent(code)}/files`),
-    ]);
-    setState(next);
-    setSlots(
-      next.sourceFiles.expected.map((expected) => {
-        const upload = pipelineFiles.files.find((file) =>
-          file.expectedFileName.toLocaleLowerCase() === expected.toLocaleLowerCase() && file.availability === "present",
-        );
-        return upload
-          ? {
-              expected,
-              status: "success",
-              uploadId: upload.id,
-              name: upload.matchedFileName ?? upload.expectedFileName,
-              progress: 100,
-            }
-          : { expected, status: "empty" };
-      }),
-    );
+    setLoading(true);
+    try {
+      const [next, pipelineFiles] = await Promise.all([
+        apiRequest<State>("/workflows/prepaid/state", { signal }).then(
+          (result) => {
+            if (!signal?.aborted) setState(result);
+            return result;
+          },
+        ),
+        apiRequest<ProcessingPipelineFileListDto>(
+          `/processing-pipelines/${encodeURIComponent(code)}/files`,
+          { signal },
+        ),
+      ]);
+      if (signal?.aborted) return;
+      setState(next);
+      setSlots(
+        next.sourceFiles.expected.map((expected) => {
+          const upload = pipelineFiles.files.find(
+            (file) =>
+              file.expectedFileName.toLocaleLowerCase() ===
+                expected.toLocaleLowerCase() && file.availability === "present",
+          );
+          return upload
+            ? {
+                expected,
+                status: "success",
+                uploadId: upload.id,
+                name: upload.matchedFileName ?? upload.expectedFileName,
+                progress: 100,
+              }
+            : { expected, status: "empty" };
+        }),
+      );
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
   };
   useEffect(() => {
-    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines")
+    const controller = new AbortController();
+    if (initialPipelineCode) {
+      void load(initialPipelineCode, controller.signal).catch(
+        (error: Error) => {
+          if (!controller.signal.aborted) setNotice(error.message);
+        },
+      );
+      return () => controller.abort();
+    }
+    void apiRequest<ProcessingPipelineCatalogDto>("/processing-pipelines", {
+      signal: controller.signal,
+    })
       .then((catalog) => {
-        const code = resolveWorkspacePipelineCode("prepaid-re-class", catalog.pipelines);
-        if (!code) throw new Error("The Prepaid Re-Class storage pipeline is not available.");
+        if (controller.signal.aborted) return;
+        const code = resolveWorkspacePipelineCode(
+          "prepaid-re-class",
+          catalog.pipelines,
+        );
+        if (!code)
+          throw new Error(
+            "The Prepaid Re-Class storage pipeline is not available.",
+          );
         setPipelineCode(code);
-        return load(code);
+        return load(code, controller.signal);
       })
-      .catch((error: Error) => setNotice(error.message));
+      .catch((error: Error) => {
+        if (controller.signal.aborted) return;
+        setNotice(error.message);
+        setLoading(false);
+      });
+    return () => controller.abort();
   }, []);
   useEffect(() => {
     setStage(stageFor(section));
@@ -290,6 +338,7 @@ export default function PrepaidRoute() {
       )
     : activities;
   const uploadFiles = async (files: FileList | File[]) => {
+    if (loading) return;
     const expected = new Map(
       slots.map((slot) => [slot.expected.toLocaleLowerCase(), slot.expected]),
     );
@@ -329,12 +378,18 @@ export default function PrepaidRoute() {
         ),
       );
       try {
-        if (!pipelineCode) throw new Error("The Prepaid Re-Class storage pipeline is not available.");
+        if (!pipelineCode)
+          throw new Error(
+            "The Prepaid Re-Class storage pipeline is not available.",
+          );
         const body = new FormData();
         body.set("expectedFileName", expectedName);
         body.set(
           "replace",
-          slots.some((slot) => slot.expected === expectedName && slot.status === "success")
+          slots.some(
+            (slot) =>
+              slot.expected === expectedName && slot.status === "success",
+          )
             ? "true"
             : "false",
         );
@@ -468,6 +523,9 @@ export default function PrepaidRoute() {
             {notice}
           </div>
         ) : null}
+        {loading ? (
+          <WorkspaceLoading label="Loading workspace..." compact />
+        ) : null}
         {stage === 1 ? (
           <div className={ui.workflowGrid}>
             <section className={`${ui.panel} ${ui.uploadPanel}`}>
@@ -485,9 +543,18 @@ export default function PrepaidRoute() {
                   All files must follow the correct file name convention:
                 </p>
                 <ul className="mt-1 list-disc space-y-0.5 pl-4 font-elliot text-[11px] 2xl:mt-2 2xl:space-y-1 2xl:pl-5 2xl:text-[13px]">
-                  {slots.map((slot) => (
-                    <li key={slot.expected}>{slot.expected}</li>
-                  ))}
+                  {loading && !state ? (
+                    <li className="list-none">
+                      <WorkspaceLoading
+                        label="Loading file guidelines..."
+                        compact
+                      />
+                    </li>
+                  ) : (
+                    (state?.sourceFiles.expected ?? []).map((expected) => (
+                      <li key={expected}>{expected}</li>
+                    ))
+                  )}
                 </ul>
               </div>
               <input
@@ -502,6 +569,7 @@ export default function PrepaidRoute() {
                 }}
               />
               <button
+                disabled={loading || !pipelineCode}
                 onClick={() => inputRef.current?.click()}
                 onDragEnter={(event) => {
                   event.preventDefault();
