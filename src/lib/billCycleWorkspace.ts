@@ -137,8 +137,11 @@ export function matchesBillCycleUploadFile(
   // The selected workspace and Bill Cycle determine the canonical storage
   // name, so supplied entity and cycle suffixes are intentionally ignored.
   return Boolean(
-    expected && uploaded && expected.report === uploaded.report &&
-    expectedFileName.split(".").at(-1)?.toLowerCase() === fileName.split(".").at(-1)?.toLowerCase(),
+    expected &&
+    uploaded &&
+    expected.report === uploaded.report &&
+    expectedFileName.split(".").at(-1)?.toLowerCase() ===
+      fileName.split(".").at(-1)?.toLowerCase(),
   );
 }
 
@@ -221,5 +224,5 @@ function compareBillCycleActivity(left: BillCycleGroup, right: BillCycleGroup) {
   if (leftHasUpload && rightHasUpload && leftTime !== rightTime)
     return rightTime - leftTime;
   if (leftHasUpload !== rightHasUpload) return leftHasUpload ? -1 : 1;
-  return compareCycles(right.cycle, left.cycle);
+  return compareCycles(left.cycle, right.cycle);
 }
