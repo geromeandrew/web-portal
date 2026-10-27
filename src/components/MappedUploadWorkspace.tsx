@@ -20,6 +20,7 @@ import {
 import fileGuidelinesIcon from "../assets/file-guidelines-icon.svg";
 import uploadFilesIcon from "../assets/upload-files-icon.svg";
 import { validateFileSize } from "../lib/uploadClient";
+import { matchesMemoUpload, memoUploadIdentity } from "../lib/memoUpload";
 import sheetsIcon from "../assets/sheets-icon.svg";
 import ActivityFileRow from "./ActivityFileRow";
 import ActivityTableHead from "./ActivityTableHead";
@@ -47,9 +48,18 @@ type FlatRow = {
 const batchLabel = (value: string) =>
   `Batch_${new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)).replaceAll("/", "")}`;
 
-function matches(file: File, requirement: ProcessingPipelineFileDto) {
+function matches(
+  file: File,
+  requirement: ProcessingPipelineFileDto,
+  pipelineCode?: string,
+) {
   const name = file.name.toLowerCase();
   const expected = requirement.expectedFileName.toLowerCase();
+  if (
+    pipelineCode === "aprm_voice_accrual" &&
+    expected === "aur extract final_billing.xlsx"
+  )
+    return name.includes("aur") && name.endsWith(".xlsx");
   if (requirement.match !== "glob") {
     // Windows can hide the existing extension when a user renames a workbook.
     // Accept repeated Excel extensions only when the full mapped stem matches.
@@ -86,6 +96,19 @@ export default function MappedUploadWorkspace({
   );
   const { guidelines, loadingGuidelines, acceptInventory } =
     useWorkspaceGuidelines(pipelineCode);
+  const guidelineItems = useMemo(() => {
+    const seen = new Set<string>();
+    return guidelines.flatMap((file) => {
+      const name =
+        pipelineCode === "memo_sst"
+          ? file.expectedFileName.replace(/_[^_]+\.xlsx$/i, "_")
+          : file.expectedFileName;
+      const identity = name.toLowerCase();
+      if (pipelineCode === "memo_sst" && seen.has(identity)) return [];
+      seen.add(identity);
+      return [{ id: file.id, name }];
+    });
+  }, [guidelines, pipelineCode]);
   const loadVersion = useRef(0);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [files, setFiles] = useState<ProcessingPipelineFileDto[]>([]);
@@ -99,7 +122,7 @@ export default function MappedUploadWorkspace({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(
-    async (code: string, signal?: AbortSignal) => {
+    async (code: string, signal?: AbortSignal, uploadedBatchId?: string) => {
       const version = ++loadVersion.current;
       const current = () => !signal?.aborted && version === loadVersion.current;
       setLoading(true);
@@ -124,7 +147,16 @@ export default function MappedUploadWorkspace({
           { signal },
         )
           .then((result) => {
-            if (current()) setBatches(result.batches);
+            if (current()) {
+              setBatches(result.batches);
+              if (
+                uploadedBatchId &&
+                ["memo_sst", "aprm_voice_accrual"].includes(code) &&
+                result.batches.some((batch) => batch.id === uploadedBatchId)
+              ) {
+                setExpanded(new Set([result.batches[0].id]));
+              }
+            }
           })
           .finally(() => {
             if (current()) setHistoryLoading(false);
@@ -218,7 +250,11 @@ export default function MappedUploadWorkspace({
     }
     const assignments = chosen.map((file) => ({
       file,
-      expected: files.find((item) => matches(file, item)),
+      expected: files.find((item) =>
+        pipelineCode === "memo_sst"
+          ? matchesMemoUpload(item.expectedFileName, file.name)
+          : matches(file, item, pipelineCode),
+      ),
     }));
     const invalid = assignments.find((item) => !item.expected);
     if (invalid) {
@@ -230,9 +266,11 @@ export default function MappedUploadWorkspace({
     if (
       new Set(
         assignments.map(({ file, expected }) =>
-          (expected!.match === "glob"
-            ? file.name
-            : expected!.expectedFileName
+          (pipelineCode === "memo_sst"
+            ? JSON.stringify(memoUploadIdentity(file.name))
+            : expected!.match === "glob"
+              ? file.name
+              : expected!.expectedFileName
           ).toLowerCase(),
         ),
       ).size !== chosen.length
@@ -242,20 +280,59 @@ export default function MappedUploadWorkspace({
     }
     uploadInProgress.current = true;
     let uploadError: string | null = null;
+    let uploadedBatchId: string | undefined;
     try {
       setNotice(null);
       setUploading(chosen.map((file) => file.name));
-      const created = await apiRequest<{ batch: { id: string } }>(
+      const created = await apiRequest<{
+        batch: { id: string };
+        files?: {
+          originalName: string;
+          expectedFileName: string;
+          savedFileName: string;
+        }[];
+      }>(
         `/processing-pipelines/${encodeURIComponent(pipelineCode)}/upload-batches`,
-        { method: "POST" },
+        {
+          method: "POST",
+          ...(pipelineCode === "memo_sst"
+            ? {
+                body: JSON.stringify({
+                  files: assignments.map(({ file, expected }) => ({
+                    originalName: file.name,
+                    expectedFileName: expected!.expectedFileName,
+                  })),
+                }),
+              }
+            : {}),
+        },
       );
-      for (const { file, expected } of assignments) {
+      uploadedBatchId = created.batch.id;
+      if (pipelineCode === "memo_sst" && !created.files?.length)
+        throw new Error(
+          "The Memo upload plan could not be loaded. Please try again.",
+        );
+      const planned =
+        pipelineCode === "memo_sst"
+          ? created.files!.map((entry) => ({
+              ...assignments.find(
+                ({ file }) => file.name === entry.originalName,
+              )!,
+              savedFileName: entry.savedFileName,
+            }))
+          : assignments.map((entry) => ({
+              ...entry,
+              savedFileName: entry.expected!.expectedFileName,
+            }));
+      for (const { file, expected } of planned) {
         const body = new FormData();
         body.set("file", file);
         body.set("expectedFileName", expected!.expectedFileName);
         body.set(
           "replace",
-          expected!.availability === "present" ? "true" : "false",
+          pipelineCode !== "memo_sst" && expected!.availability === "present"
+            ? "true"
+            : "false",
         );
         body.set("batchId", created.batch.id);
         await apiRequest(
@@ -272,7 +349,7 @@ export default function MappedUploadWorkspace({
     } finally {
       // A failed batch can still have successful files. Refresh those before retrying.
       try {
-        await load(pipelineCode);
+        await load(pipelineCode, undefined, uploadedBatchId);
       } catch (error) {
         uploadError ??=
           error instanceof Error
@@ -375,10 +452,8 @@ export default function MappedUploadWorkspace({
               All files must follow the correct file name convention:
             </p>
             <ul className={workspaceUi.guidanceList}>
-              {guidelines.length ? (
-                guidelines.map((file) => (
-                  <li key={file.id}>{file.expectedFileName}</li>
-                ))
+              {guidelineItems.length ? (
+                guidelineItems.map((file) => <li key={file.id}>{file.name}</li>)
               ) : loading || loadingGuidelines ? (
                 <li className="list-none">
                   <WorkspaceLoading
@@ -680,7 +755,7 @@ function FragmentBatch({
       {expanded
         ? batch.files.map((file, index) => (
             <ActivityFileRow
-              key={file.expectedFileName}
+              key={file.objectKey}
               first={index === 0}
               last={index === batch.files.length - 1}
               fileName={file.originalName}
