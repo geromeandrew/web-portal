@@ -81,6 +81,76 @@ describe("BillCycleWorkspace", () => {
     api.apiRequest.mockReset();
   });
 
+  it("shows each file's uploader and summarizes a cycle with multiple uploaders", async () => {
+    const original = api.apiRequest.getMockImplementation()!;
+    api.apiRequest.mockImplementation((path: string) =>
+      path.endsWith("/files")
+        ? Promise.resolve({
+            configured: true,
+            files: files.map((file, index) => ({
+              ...file,
+              availability: "present",
+              key: `key-${index}`,
+              uploadedBy: index ? "Lance" : "Rodelio",
+            })),
+          })
+        : original(path),
+    );
+    await act(async () =>
+      root.render(<BillCycleWorkspace workspace={workspace} />),
+    );
+    expect(container.textContent).toContain("2 uploaders");
+    const toggle = [
+      ...container.querySelectorAll("button[aria-expanded]"),
+    ][0] as HTMLButtonElement;
+    await act(async () => toggle.click());
+    const rows = [...container.querySelectorAll(".activity-file-row")];
+    expect(
+      rows.map((row) => row.querySelectorAll("td")[1].textContent),
+    ).toEqual(["Rodelio", "Lance"]);
+  });
+
+  it.each(["glob", "inov", "bayn"])(
+    "shows the original report list once before selecting a cycle in bss_billcycle_%s",
+    async (entity) => {
+      const code = `bss_billcycle_${entity}`;
+      const marker = { glob: "G", inov: "I", bayn: "B" }[entity]!;
+      const names = [
+        "308. Billed Adjustments Monthly Summary Report.XLSX",
+        "318. Billed Charges Summary Report.XLSX",
+        "411. Bill Control_PHP.XLSX",
+        "sap_glbilled.txt",
+      ];
+      const mappedFiles = ["01", "06"].flatMap((cycle) =>
+        names.map((name, index) => ({
+          ...files[0],
+          id: `${cycle}-${index}`,
+          expectedFileName: name.replace(/(?=\.[^.]+$)/, `_${marker}_${cycle}`),
+          stepFunction: null,
+        })),
+      );
+      api.apiRequest.mockImplementation(async (path: string) =>
+        path.endsWith("/files")
+          ? { configured: true, files: mappedFiles }
+          : { requirements: [] },
+      );
+      await act(async () =>
+        root.render(
+          <BillCycleWorkspace workspace={workspace} pipelineCode={code} />,
+        ),
+      );
+      const guidance = container.querySelector(
+        '[aria-labelledby="file-upload-heading"]',
+      )!;
+      expect(guidance.textContent).toContain(
+        "All files must follow the correct file name convention:",
+      );
+      expect(
+        [...guidance.querySelectorAll("li")].map((item) => item.textContent),
+      ).toEqual(names);
+    },
+  );
+
   it("shows cycle guidelines early while keeping uploads locked until live files arrive", async () => {
     let resolveFiles!: (value: unknown) => void;
     let resolveGuidelines!: (value: unknown) => void;
@@ -159,6 +229,11 @@ describe("BillCycleWorkspace", () => {
 
     expect(container.textContent).toContain("BSS Bill Cycle - Globe");
     expect(container.textContent).toContain("Bill Cycle 11");
+    expect(
+      Array.from(container.querySelectorAll("th")).map(
+        (cell) => cell.textContent,
+      ),
+    ).toEqual(["BATCH CYCLE", "Uploaded By", "Upload", "Actions"]);
     expect(container.textContent).toContain("Sep 3, 2026");
     expect(container.textContent).toContain("-");
 
@@ -188,7 +263,7 @@ describe("BillCycleWorkspace", () => {
       '[aria-label="Remove 308. Billed Adjustments Monthly Summary Report.XLSX"]',
     ) as HTMLButtonElement;
     expect(deleteButton).toHaveProperty("disabled", false);
-    expect(deleteButton.closest("tr")?.querySelector("td")?.colSpan).toBe(2);
+    expect(deleteButton.closest("tr")?.querySelector("td")?.colSpan).toBe(1);
   });
 
   it("sorts selectors ascending and moves an uploaded cycle to the top expanded", async () => {
@@ -285,6 +360,50 @@ describe("BillCycleWorkspace", () => {
     expect(activityRows).toHaveLength(3);
     expect(activityRows[1].textContent).toContain("cycle-24.xlsx");
     expect(activityRows[2].textContent).toContain("Bill Cycle 11");
+  });
+
+  it("cancels an active upload without sending queued files or reporting success", async () => {
+    const original = api.apiRequest.getMockImplementation()!;
+    api.apiRequest.mockImplementation((path: string, options?: RequestInit) =>
+      options?.method === "POST"
+        ? new Promise((_resolve, reject) =>
+            options.signal?.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            ),
+          )
+        : original(path),
+    );
+    await act(async () =>
+      root.render(<BillCycleWorkspace workspace={workspace} />),
+    );
+    const select =
+      container.querySelector<HTMLSelectElement>("#bill-cycle-upload")!;
+    await act(async () => {
+      select.value = "11";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const input = container.querySelector('input[type="file"]')!;
+    Object.defineProperty(input, "files", {
+      value: files.map((file) => new File(["source"], file.expectedFileName)),
+    });
+    await act(async () =>
+      input.dispatchEvent(new Event("change", { bubbles: true })),
+    );
+    const cancel = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "Cancel upload",
+    )!;
+    await act(async () => cancel.click());
+    expect(
+      api.apiRequest.mock.calls.filter(
+        ([, options]) => options?.method === "POST",
+      ),
+    ).toHaveLength(1);
+    expect(container.textContent).toContain("Upload cancelled");
+    expect(container.textContent).toContain("Not confirmed");
+    expect(container.textContent).toContain("Not started");
+    expect(container.textContent).not.toContain("successfully uploaded");
   });
 
   it.each(["validation", "request"])(
