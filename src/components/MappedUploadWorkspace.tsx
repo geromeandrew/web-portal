@@ -1,10 +1,4 @@
-import {
-  AlertCircle,
-  ChevronRight,
-  FileText,
-  LoaderCircle,
-  Trash2,
-} from "lucide-react";
+import { AlertCircle, ChevronRight, LoaderCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ProcessingPipelineCatalogDto,
@@ -30,6 +24,8 @@ import { ActivityColumns, UploadStatus } from "./UploadStatus";
 import { formatBillCycleUploadTimestamp } from "../lib/billCycleWorkspace";
 import { EmptyActivityState } from "./EmptyActivityState";
 import WorkspaceShell, { workspaceUi } from "./WorkspaceShell";
+import UploadQueue from "./UploadQueue";
+import { useUploadProgress } from "../lib/useUploadProgress";
 
 type Props = {
   workspace: WorkspaceDefinition;
@@ -40,6 +36,7 @@ type FlatRow = {
   expectedFileName: string;
   originalName: string;
   readAt: string;
+  uploadedBy?: string | null;
   removedAt?: string | null;
   objectKey: string;
   batch: ProcessingPipelineUploadBatchDto;
@@ -57,9 +54,12 @@ function matches(
   const expected = requirement.expectedFileName.toLowerCase();
   if (
     pipelineCode === "aprm_voice_accrual" &&
-    expected === "aur extract final_billing.xlsx"
+    /^aur extract final(?:_billing)?\.xlsx$/.test(expected)
   )
-    return name.includes("aur") && name.endsWith(".xlsx");
+    return (
+      /(?:^|[^a-z0-9])aur\s+extract(?=$|[^a-z0-9])/i.test(name) &&
+      name.endsWith(".xlsx")
+    );
   if (requirement.match !== "glob") {
     // Windows can hide the existing extension when a user renames a workbook.
     // Accept repeated Excel extensions only when the full mapped stem matches.
@@ -104,7 +104,7 @@ export default function MappedUploadWorkspace({
           ? file.expectedFileName.replace(/_[^_]+\.xlsx$/i, "_")
           : file.expectedFileName;
       const identity = name.toLowerCase();
-      if (pipelineCode === "memo_sst" && seen.has(identity)) return [];
+      if (seen.has(identity)) return [];
       seen.add(identity);
       return [{ id: file.id, name }];
     });
@@ -116,7 +116,12 @@ export default function MappedUploadWorkspace({
     [],
   );
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState<string[]>([]);
+  const uploadQueue = useUploadProgress();
+  const progress = uploadQueue.progress;
+  const uploading =
+    progress && !["complete", "error"].includes(progress.phase)
+      ? progress.entries.map((entry) => entry.fileName)
+      : [];
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -165,13 +170,14 @@ export default function MappedUploadWorkspace({
       if (!current()) return;
       if (fileResult.status === "rejected") throw fileResult.reason;
       if (historyResult.status === "rejected") {
-        setBatches([]);
-        setNotice(
+        const message =
           historyResult.reason instanceof Error
             ? `File mappings loaded, but upload activity could not be loaded: ${historyResult.reason.message}`
-            : "File mappings loaded, but upload activity could not be loaded.",
-        );
+            : "File mappings loaded, but upload activity could not be loaded.";
+        setNotice(message);
+        return message;
       } else setNotice(null);
+      return null;
     },
     [acceptInventory],
   );
@@ -283,7 +289,7 @@ export default function MappedUploadWorkspace({
     let uploadedBatchId: string | undefined;
     try {
       setNotice(null);
-      setUploading(chosen.map((file) => file.name));
+      uploadQueue.begin(chosen.map((file) => file.name));
       const created = await apiRequest<{
         batch: { id: string };
         files?: {
@@ -308,7 +314,20 @@ export default function MappedUploadWorkspace({
         },
       );
       uploadedBatchId = created.batch.id;
-      if (pipelineCode === "memo_sst" && !created.files?.length)
+      if (
+        pipelineCode === "memo_sst" &&
+        (created.files?.length !== assignments.length ||
+          new Set(created.files.map((entry) => entry.originalName)).size !==
+            assignments.length ||
+          created.files.some(
+            (entry) =>
+              !assignments.some(
+                ({ file, expected }) =>
+                  file.name === entry.originalName &&
+                  expected!.expectedFileName === entry.expectedFileName,
+              ),
+          ))
+      )
         throw new Error(
           "The Memo upload plan could not be loaded. Please try again.",
         );
@@ -325,6 +344,7 @@ export default function MappedUploadWorkspace({
               savedFileName: entry.expected!.expectedFileName,
             }));
       for (const { file, expected } of planned) {
+        uploadQueue.start(file.name);
         const body = new FormData();
         body.set("file", file);
         body.set("expectedFileName", expected!.expectedFileName);
@@ -339,6 +359,7 @@ export default function MappedUploadWorkspace({
           `/processing-pipelines/${encodeURIComponent(pipelineCode)}/files`,
           { method: "POST", body },
         );
+        uploadQueue.uploaded(file.name);
         // Keep the operation locked until all files and activity are refreshed.
       }
     } catch (error) {
@@ -348,17 +369,22 @@ export default function MappedUploadWorkspace({
           : "A file could not be uploaded.";
     } finally {
       // A failed batch can still have successful files. Refresh those before retrying.
+      uploadQueue.refresh(uploadError);
       try {
-        await load(pipelineCode, undefined, uploadedBatchId);
+        const refreshError = await load(
+          pipelineCode,
+          undefined,
+          uploadedBatchId,
+        );
+        uploadError ??= refreshError ?? null;
       } catch (error) {
         uploadError ??=
           error instanceof Error
             ? error.message
             : "Workspace files could not be loaded.";
       }
-      if (uploadError) setNotice(uploadError);
       uploadInProgress.current = false;
-      setUploading([]);
+      uploadQueue.finish(uploadError);
     }
   };
 
@@ -451,6 +477,9 @@ export default function MappedUploadWorkspace({
             <p className={workspaceUi.guidanceText}>
               All files must follow the correct file name convention:
             </p>
+            {pipelineCode === "memo_sst" ? (
+              <p className={workspaceUi.guidanceText}>Date format: YYYYMMDD.</p>
+            ) : null}
             <ul className={workspaceUi.guidanceList}>
               {guidelineItems.length ? (
                 guidelineItems.map((file) => <li key={file.id}>{file.name}</li>)
@@ -506,37 +535,25 @@ export default function MappedUploadWorkspace({
               )}
             </>
             <span className={workspaceUi.uploadLabel}>
-              {loading
-                ? "Loading workspace files..."
-                : uploading.length
-                  ? `Uploading ${uploading.length} file${uploading.length === 1 ? "" : "s"}`
+              {uploading.length
+                ? progress?.phase === "refreshing"
+                  ? "Updating activity..."
+                  : "Uploading files..."
+                : loading
+                  ? "Loading workspace files..."
                   : "Drop files here"}
             </span>
             <span className={workspaceUi.uploadHint}>
-              {loading
-                ? "Preparing file upload"
-                : "or click to browse your computer"}
+              {uploading.length
+                ? "Keep this page open until the upload finishes."
+                : loading
+                  ? "Preparing file upload"
+                  : "or click to browse your computer"}
             </span>
           </button>
         </section>
         <div className="min-w-0 space-y-3">
-          {uploading.map((name) => (
-            <div
-              key={name}
-              className="grid min-h-[48px] grid-cols-[minmax(0,1fr)_132px_auto] items-center gap-4 rounded-[5px] bg-white px-5 shadow-[0_1px_4px_rgba(20,47,89,0.07)] ring-1 ring-[#e0e8f2] 2xl:min-h-[58px] 2xl:px-6"
-            >
-              <div className="flex min-w-0 items-center gap-2 font-elliot text-[11px] 2xl:text-[13px]">
-                <FileText className="h-3.5 w-3.5 text-[#16b36f]" />
-                <span className="truncate">{name}</span>
-              </div>
-              <div className="h-[5px] overflow-hidden rounded-full bg-[#edf0f3]">
-                <div className="h-full w-1/4 rounded-full bg-[#1399eb]" />
-              </div>
-              <span className="font-elliot text-[11px] text-[#89919d]">
-                25%
-              </span>
-            </div>
-          ))}
+          {progress ? <UploadQueue progress={progress} /> : null}
           <section
             className={workspaceUi.panel}
             aria-busy={historyLoading}
@@ -550,7 +567,16 @@ export default function MappedUploadWorkspace({
                 ACTIVITY HISTORY
               </h2>
             </div>
-            {historyLoading ? (
+            {historyLoading && batches.length > 0 ? (
+              <p
+                role="status"
+                className="flex items-center gap-2 px-6 py-2 text-[11px] text-[#4165a8]"
+              >
+                <LoaderCircle className="h-3 w-3 animate-spin" /> Updating
+                activity...
+              </p>
+            ) : null}
+            {historyLoading && !batches.length ? (
               <WorkspaceLoading label="Loading activity history..." />
             ) : history === "flat" ? (
               flatRows.length ? (
@@ -659,13 +685,15 @@ function FlatHistory({
               className="border-b border-[#dce3ed] bg-white"
             >
               <td className={`${workspaceUi.tableCell} break-words px-7 py-3`}>
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-start gap-2">
                   <img src={sheetsIcon} alt="" className="h-3.5 shrink-0" />
-                  {row.originalName}
+                  <span className="min-w-0 break-all">{row.originalName}</span>
                 </span>
               </td>
               <td className={workspaceUi.tableUploader}>
-                {row.batch.uploadedBy ?? "-"}
+                {row.uploadedBy === undefined
+                  ? (row.batch.uploadedBy ?? "-")
+                  : (row.uploadedBy ?? "-")}
               </td>
               <td className={workspaceUi.tableValue}>
                 {row.removedAt ? (
@@ -674,8 +702,6 @@ function FlatHistory({
                   <UploadStatus readAt={row.readAt} />
                 )}
               </td>
-              <td className={workspaceUi.tablePlaceholder}>-</td>
-              <td className={workspaceUi.tablePlaceholder}>-</td>
               <td className={workspaceUi.tableActions}>
                 <RemoveFileButton file={row} {...actions} />
               </td>
@@ -748,8 +774,6 @@ function FragmentBatch({
         <td className={workspaceUi.tableTimestamp}>
           {formatBillCycleUploadTimestamp(batch.createdAt)}
         </td>
-        <td className={workspaceUi.tablePlaceholder}>-</td>
-        <td className={workspaceUi.tablePlaceholder}>-</td>
         <td className={workspaceUi.tableActions} />
       </tr>
       {expanded
@@ -759,6 +783,11 @@ function FragmentBatch({
               first={index === 0}
               last={index === batch.files.length - 1}
               fileName={file.originalName}
+              uploadedBy={
+                file.uploadedBy === undefined
+                  ? batch.uploadedBy
+                  : file.uploadedBy
+              }
               status={
                 file.removedAt ? (
                   "Removed"
