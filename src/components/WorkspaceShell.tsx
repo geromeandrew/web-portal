@@ -33,7 +33,7 @@ export const workspaceUi = {
   tableCell: "font-elliot text-[12px] text-[#171b24] 2xl:text-[14px]",
   successToast:
     "absolute left-1/2 top-[66px] z-20 flex -translate-x-1/2 items-center gap-2 rounded-[5px] bg-[#1fac6c] px-4 py-3 font-elliot text-[12px] text-white shadow-[0_5px_12px_rgba(22,104,68,0.18)] xl:left-[48%] 2xl:top-[82px] 2xl:px-5 2xl:py-4 2xl:text-[14px]",
-  table: "w-full min-w-[600px] table-fixed border-collapse text-left",
+  table: "w-full min-w-[480px] table-fixed border-collapse text-left",
   tableHeadingFirst: "px-7 py-3 2xl:px-8 2xl:py-4",
   tableHeading: "px-4 py-3 2xl:px-5 2xl:py-4",
   tableHeadingActions: "w-10 px-2 py-3 2xl:w-12 2xl:py-4",
@@ -45,8 +45,6 @@ export const workspaceUi = {
     "font-elliot whitespace-normal px-4 py-3 text-[10px] leading-4 text-[#171b24] 2xl:text-[12px]",
   tableValue:
     "font-elliot text-[12px] text-[#171b24] 2xl:text-[14px] px-4 py-3",
-  tablePlaceholder:
-    "font-elliot text-[12px] text-[#8b96a6] 2xl:text-[14px] px-4 py-3",
   tableActions: "px-2 py-2.5",
   tableToggle: "focus-ring inline-flex items-center gap-3 rounded-sm",
   guidanceTitle:

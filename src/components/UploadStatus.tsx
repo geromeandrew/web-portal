@@ -20,15 +20,13 @@ export function UploadStatus({
   );
 }
 
-/** Expanded file rows span the first two columns and share the status columns. */
+/** Every file has its own filename, uploader, status and action columns. */
 export function ActivityColumns() {
   return (
     <colgroup>
+      <col className="w-[44%]" />
       <col className="w-[24%]" />
       <col className="w-[24%]" />
-      <col className="w-[24%]" />
-      <col className="w-[10%]" />
-      <col className="w-[10%]" />
       <col className="w-[8%]" />
     </colgroup>
   );

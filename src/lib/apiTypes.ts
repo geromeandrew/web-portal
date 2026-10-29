@@ -68,6 +68,7 @@ export type ProcessingPipelineUploadBatchDto = {
     originalName: string;
     objectKey: string;
     readAt: string;
+    uploadedBy?: string | null;
     removedAt?: string | null;
   }[];
 };
