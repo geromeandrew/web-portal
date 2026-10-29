@@ -1,6 +1,6 @@
 export function memoUploadIdentity(name: string) {
   if (/[\\/\0]/.test(name)) return null;
-  const match = /^(.+)_([^_]+)\.xlsx$/i.exec(
+  const match = /^(.+?)_(\d{8}(?:_.*)?|[^_]+)\.xlsx$/i.exec(
     name.replace(/(?:\.xlsx){2,}$/i, ".xlsx"),
   );
   return match && match[2].trim()

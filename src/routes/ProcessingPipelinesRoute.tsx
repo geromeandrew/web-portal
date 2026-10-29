@@ -528,8 +528,7 @@ function GenericProcessingPipelinesRoute({
               File Guidelines
             </div>
             <p className="mt-3 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-4 2xl:text-[13px] 2xl:leading-5">
-              Select a mapped source file, then upload a file with the exact
-              required name:
+              All files must follow the correct file name convention:
             </p>
             <ul className="mt-1 max-h-24 list-disc space-y-0.5 overflow-y-auto pl-4 font-elliot text-[11px] leading-4 text-[#2a3240] 2xl:mt-2 2xl:max-h-28 2xl:space-y-1 2xl:pl-5 2xl:text-[13px] 2xl:leading-5">
               {files.length ? (

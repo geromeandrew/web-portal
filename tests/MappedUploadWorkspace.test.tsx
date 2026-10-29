@@ -64,17 +64,167 @@ describe("MappedUploadWorkspace", () => {
     api.apiRequest.mockReset();
   });
 
+  it.each([false, true])(
+    "keeps upload completion and existing history visible until refresh settles (refresh fails: %s)",
+    async (refreshFails) => {
+      const original = api.apiRequest.getMockImplementation()!;
+      let save!: () => void;
+      let refresh!: () => void;
+      let saved = false;
+      const batch = {
+        id: "old-batch",
+        createdAt: "2026-10-23T01:27:00Z",
+        uploadedBy: "Original uploader",
+        files: [
+          {
+            originalName: "existing.xlsx",
+            expectedFileName: "3PComms_01.XLSX",
+            objectKey: "old-key",
+            readAt: "2026-10-23T01:27:00Z",
+          },
+        ],
+      };
+      api.apiRequest.mockImplementation(
+        async (path: string, options?: RequestInit) => {
+          if (options?.method === "POST") {
+            if (path.endsWith("/upload-batches"))
+              return {
+                batch: { id: "new-batch" },
+                files: [
+                  {
+                    originalName: "3PComms_20261023_anything.xlsx",
+                    expectedFileName: "3PComms_01.XLSX",
+                    savedFileName: "3PComms_02.XLSX",
+                  },
+                ],
+              };
+            return new Promise<void>((resolve) => {
+              save = () => {
+                saved = true;
+                resolve();
+              };
+            });
+          }
+          if (path.endsWith("/upload-batches")) {
+            if (!saved) return { batches: [batch] };
+            return new Promise((resolve, reject) => {
+              refresh = () =>
+                refreshFails
+                  ? reject(new Error("Activity unavailable"))
+                  : resolve({ batches: [batch] });
+            });
+          }
+          return original(path, options);
+        },
+      );
+      await act(async () =>
+        root.render(
+          <MappedUploadWorkspace
+            workspace={workspace}
+            pipelineCode="memo_sst"
+            history="flat"
+          />,
+        ),
+      );
+      const input = container.querySelector('input[type="file"]')!;
+      Object.defineProperty(input, "files", {
+        value: [new File(["source"], "3PComms_20261023_anything.xlsx")],
+      });
+      await act(async () =>
+        input.dispatchEvent(new Event("change", { bubbles: true })),
+      );
+      expect(
+        container
+          .querySelector('[role="progressbar"]')
+          ?.getAttribute("aria-valuenow"),
+      ).toBe("5");
+      await act(async () => save());
+      expect(
+        container
+          .querySelector('[role="progressbar"]')
+          ?.getAttribute("aria-valuenow"),
+      ).toBe("100");
+      expect(container.textContent).toContain("existing.xlsx");
+      expect(container.textContent).not.toContain(
+        "Loading activity history...",
+      );
+      expect(container.textContent).not.toContain("successfully uploaded");
+      const dropZone = container.querySelector(
+        'section[aria-labelledby="file-upload-heading"] button',
+      )!;
+      expect(dropZone).toHaveProperty("disabled", true);
+      await act(async () => refresh());
+      expect(dropZone).toHaveProperty("disabled", false);
+      expect(container.textContent).toContain(
+        refreshFails ? "Activity unavailable" : "1 file successfully uploaded",
+      );
+      expect(container.textContent).toContain("existing.xlsx");
+      if (refreshFails)
+        expect(container.textContent).not.toContain("successfully uploaded");
+    },
+  );
+
+  it.each(["flat", "batches"] as const)(
+    "shows the uploader on each file in %s history",
+    async (history) => {
+      const original = api.apiRequest.getMockImplementation()!;
+      api.apiRequest.mockImplementation((path: string) =>
+        path.endsWith("/upload-batches")
+          ? Promise.resolve({
+              batches: [
+                {
+                  id: "batch-with-uploader",
+                  createdAt: "2026-10-23T01:27:00Z",
+                  uploadedBy: "Batch owner",
+                  files: [
+                    {
+                      originalName: "report.xlsx",
+                      expectedFileName: "3PComms_01.XLSX",
+                      objectKey: "key",
+                      readAt: "2026-10-23T01:27:00Z",
+                      uploadedBy: "File uploader",
+                    },
+                  ],
+                },
+              ],
+            })
+          : original(path),
+      );
+      await act(async () =>
+        root.render(
+          <MappedUploadWorkspace
+            workspace={workspace}
+            pipelineCode="memo_sst"
+            history={history}
+          />,
+        ),
+      );
+      if (history === "batches")
+        await act(async () =>
+          (
+            container.querySelector(
+              "button[aria-expanded]",
+            ) as HTMLButtonElement
+          ).click(),
+        );
+      const row = [...container.querySelectorAll("tbody tr")].find((row) =>
+        row.textContent?.includes("report.xlsx"),
+      )!;
+      expect(row.querySelectorAll("td")[1].textContent).toBe("File uploader");
+    },
+  );
+
   it.each(["memo_sst", "aprm_voice_accrual"])(
     "expands only the newest batch after each upload in %s",
     async (pipelineCode) => {
       const expectedFileName =
         pipelineCode === "memo_sst"
           ? "3PComms_01.XLSX"
-          : "AUR Extract FINAL_BILLING.XLSX";
+          : "AUR Extract FINAL.XLSX";
       const originalName =
         pipelineCode === "memo_sst"
           ? "3PComms_10272026.xlsx"
-          : "October AUR export.xlsx";
+          : "October AUR Extract export.xlsx";
       const makeBatch = (id: string, day: number, name: string) => ({
         id,
         createdAt: `2026-10-${day}T12:00:00Z`,
@@ -327,7 +477,7 @@ describe("MappedUploadWorkspace", () => {
               files: [
                 {
                   id: "aur",
-                  expectedFileName: "AUR Extract FINAL_BILLING.XLSX",
+                  expectedFileName: "AUR Extract FINAL.XLSX",
                   match: "exact",
                   availability: "missing",
                   key: null,
@@ -361,9 +511,12 @@ describe("MappedUploadWorkspace", () => {
     };
 
     it.each([
-      "AUR.xlsx",
-      "October 2026 AUR usage export.xlsx",
-      "monthly_aur_10272026.XLSX",
+      "AUR Extract.xlsx",
+      "AUR Extract_10262026.xlsx",
+      "AUR Extract_20261026_any_suffix.XLSX",
+      "monthly_AUR Extract_10262026.xlsx",
+      "AUR Extract - Sep 1 to 30 - FINAL.xlsx",
+      "monthly AUR Extract 20261027.XLSX",
     ])("maps %s to the required AUR filename", async (name) => {
       await open();
       await select([name]);
@@ -373,31 +526,69 @@ describe("MappedUploadWorkspace", () => {
       );
       expect(uploads).toHaveLength(1);
       expect((uploads[0][1].body as FormData).get("expectedFileName")).toBe(
-        "AUR Extract FINAL_BILLING.XLSX",
+        "AUR Extract FINAL.XLSX",
       );
       expect(((uploads[0][1].body as FormData).get("file") as File).name).toBe(
         name,
       );
       expect(container.querySelector('[role="alert"]')).toBeNull();
     });
-    it.each(["Usage export.xlsx", "AU_R.xlsx", "AUR.csv"])(
-      "rejects %s",
-      async (name) => {
-        await open();
-        await select([name]);
-        expect(container.textContent).toContain(
-          "not required by the current file mapping",
-        );
-        expect(
-          api.apiRequest.mock.calls.some(
-            ([, options]) => options?.method === "POST",
+    it("accepts AUR files against the legacy mapping during a rolling deployment and deduplicates guidelines", async () => {
+      const original = api.apiRequest.getMockImplementation()!;
+      api.apiRequest.mockImplementation(
+        async (path: string, options?: RequestInit) => {
+          const response = await original(path, options);
+          if (path.endsWith("/files") && options?.method !== "POST") {
+            response.files = ["legacy", "current"].map((id) => ({
+              ...response.files[0],
+              id,
+              expectedFileName: "AUR Extract FINAL_BILLING.XLSX",
+            }));
+          }
+          return response;
+        },
+      );
+      await open();
+      expect(
+        [
+          ...container.querySelectorAll(
+            '[aria-labelledby="file-upload-heading"] li',
           ),
-        ).toBe(false);
-      },
-    );
+        ].map((node) => node.textContent),
+      ).toEqual(["AUR Extract FINAL_BILLING.XLSX"]);
+      await select(["AUR Extract_10262026.xlsx"]);
+      const uploads = api.apiRequest.mock.calls.filter(
+        ([path, options]) =>
+          path.endsWith("/files") && options?.method === "POST",
+      );
+      expect(uploads).toHaveLength(1);
+      expect((uploads[0][1].body as FormData).get("expectedFileName")).toBe(
+        "AUR Extract FINAL_BILLING.XLSX",
+      );
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
+    it.each([
+      "AUR.xlsx",
+      "AUR Extractor.xlsx",
+      "October AUR export.xlsx",
+      "Usage export.xlsx",
+      "AU_R.xlsx",
+      "AUR Extract.csv",
+    ])("rejects %s", async (name) => {
+      await open();
+      await select([name]);
+      expect(container.textContent).toContain(
+        "not required by the current file mapping",
+      );
+      expect(
+        api.apiRequest.mock.calls.some(
+          ([, options]) => options?.method === "POST",
+        ),
+      ).toBe(false);
+    });
     it("rejects multiple AUR workbooks targeting the single canonical file in one batch", async () => {
       await open();
-      await select(["AUR_10262026.xlsx", "AUR_10272026.xlsx"]);
+      await select(["AUR Extract 20261026.xlsx", "AUR Extract 20261027.xlsx"]);
       expect(container.textContent).toContain("Duplicate files");
       expect(
         api.apiRequest.mock.calls.some(
@@ -410,12 +601,12 @@ describe("MappedUploadWorkspace", () => {
   describe("Memo date suffix batches", () => {
     const plan = [
       {
-        originalName: "3PComms_12312025.xlsx",
+        originalName: "3PComms_20261023_0127.xlsx",
         expectedFileName: "3PComms_01.XLSX",
         savedFileName: "3PComms_02.XLSX",
       },
       {
-        originalName: "3PComms_01022027.xlsx",
+        originalName: "3PComms_20261023_0128.xlsx",
         expectedFileName: "3PComms_01.XLSX",
         savedFileName: "3PComms_03.XLSX",
       },
@@ -445,6 +636,44 @@ describe("MappedUploadWorkspace", () => {
           throw new Error(`Unexpected request: ${path}`);
         },
       );
+    });
+
+    it("rejects an incomplete server upload plan before writing any files", async () => {
+      const original = api.apiRequest.getMockImplementation()!;
+      api.apiRequest.mockImplementation(
+        async (path: string, options?: RequestInit) => {
+          const response = await original(path, options);
+          if (path.endsWith("/upload-batches") && options?.method === "POST")
+            response.files = [plan[0]];
+          return response;
+        },
+      );
+      await act(async () =>
+        root.render(
+          <MappedUploadWorkspace
+            workspace={workspace}
+            pipelineCode="memo_sst"
+            history="batches"
+          />,
+        ),
+      );
+      const input = container.querySelector('input[type="file"]')!;
+      Object.defineProperty(input, "files", {
+        value: plan.map((entry) => new File(["source"], entry.originalName)),
+      });
+      await act(async () =>
+        input.dispatchEvent(new Event("change", { bubbles: true })),
+      );
+      expect(container.textContent).toContain(
+        "Memo upload plan could not be loaded",
+      );
+      expect(container.textContent).not.toContain("successfully uploaded");
+      expect(
+        api.apiRequest.mock.calls.some(
+          ([path, options]) =>
+            path.endsWith("/files") && options?.method === "POST",
+        ),
+      ).toBe(false);
     });
 
     it.each([false, true])(
@@ -550,9 +779,11 @@ describe("MappedUploadWorkspace", () => {
         ),
       );
       const displayed = () =>
-        Array.from(container.querySelectorAll("ul li")).map(
-          (item) => item.textContent,
-        );
+        Array.from(
+          container.querySelectorAll(
+            '[aria-labelledby="file-upload-heading"] ul li',
+          ),
+        ).map((item) => item.textContent);
       const expected = [
         "3PComms_",
         "BillsPrinting_",
@@ -957,9 +1188,17 @@ describe("MappedUploadWorkspace", () => {
         '[aria-label="Remove 3PComms_01.XLSX"]',
       )!;
       const statusRow = remove.closest("tr")!;
-      expect(statusRow.querySelectorAll("td").length).toBe(
-        history === "batches" ? 5 : 6,
-      );
+      expect(statusRow.querySelectorAll("td").length).toBe(4);
+      expect(
+        Array.from(container.querySelectorAll("th")).map(
+          (cell) => cell.textContent,
+        ),
+      ).toEqual([
+        history === "batches" ? "Batch Number" : "File Name",
+        "Uploaded By",
+        "Upload",
+        "Actions",
+      ]);
       await act(async () => remove.click());
       expect(container.querySelector('[role="dialog"]')).not.toBeNull();
       expect(removed).toBe(false);
