@@ -5,6 +5,16 @@ describe("Processing Pipeline file client", () => {
   beforeEach(() => { setOktaAuthEnabledForTests(true); setAccessTokenProviderForTests({ get: async () => "test-token", renew: async () => "renewed-token" }); });
   afterEach(() => { setOktaAuthEnabledForTests(null); setAccessTokenProviderForTests(null); vi.unstubAllGlobals(); });
 
+  it.each([403, 404, 500])("accepts message-only error bodies for %s", async status => {
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify({error:{message:"Please try again."}}),{status,headers:{"Content-Type":"application/json"}})));
+    await expect(apiRequest("/auth/me")).rejects.toMatchObject({status,message:"Please try again."});
+  });
+  it.each(["<html>private gateway error</html>", "{}", "null"])("uses a safe fallback for malformed gateway errors",async body=>{
+    vi.stubGlobal("fetch",vi.fn().mockImplementation(async()=>new Response(body,{status:500})));
+    await expect(apiRequest("/auth/me")).rejects.toMatchObject({message:"The request could not be completed. Please try again."});
+    await expect(downloadApiFile("/report","report.csv")).rejects.toMatchObject({message:"Download failed."});
+    await expect(fetchApiFile("/report")).rejects.toMatchObject({message:"The file could not be loaded."});
+  });
   it("loads a selected object through the authenticated API", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("file contents", { headers: { "content-type": "text/plain" } }));
     vi.stubGlobal("fetch", fetchMock);

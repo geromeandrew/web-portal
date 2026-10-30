@@ -24,7 +24,7 @@ export type UploadDto = {
 };
 
 export type ApiError = {
-  error: { code: string; message: string; fields?: Record<string, string> };
+  error: { code?: string; message: string; fields?: Record<string, string> };
 };
 
 export type ProcessingPipelineStage =

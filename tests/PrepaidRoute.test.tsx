@@ -30,7 +30,6 @@ it("shows prepaid guidelines before storage is ready and preserves the upload lo
     await act(async () =>
       root.render(
         <MemoryRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <PrepaidRoute pipelineCode="prepaid_reclass" />
         </MemoryRouter>,
