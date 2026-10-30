@@ -4,6 +4,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { fetchApiFile } from "../lib/apiClient";
 
+// Uploaded Content-Type is not trusted. Active HTML/SVG/XML must stay downloadable
+// instead of running in a same-origin blob iframe that can access portal tokens.
+const previewContentTypes = new Set([
+  "application/pdf", "text/plain", "text/csv",
+  "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp",
+]);
+
 export default function ProcessingPipelineFileViewRoute() {
   const [params] = useSearchParams();
   const pipelineCode = params.get("pipelineCode") ?? "";
@@ -18,6 +25,6 @@ export default function ProcessingPipelineFileViewRoute() {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [key, pipelineCode]);
   const filename = key.split("/").at(-1) ?? "Pipeline file";
-  const preview = contentType === "application/pdf" || contentType.startsWith("image/") || contentType.startsWith("text/");
+  const preview = previewContentTypes.has(contentType.split(";", 1)[0].trim().toLowerCase());
   return <div className="space-y-8 pb-4"><PageHeader eyebrow="Processing Pipelines" title={filename} description={`${pipelineCode} · inbound source file`}><Link to="/processing-pipelines" className="focus-ring inline-flex items-center gap-2 rounded-lg text-[13px] font-semibold text-teal"><ArrowLeft className="h-4 w-4" />Back to pipelines</Link></PageHeader><section className="portal-panel min-h-[420px] overflow-hidden p-5 sm:p-8">{error ? <p className="text-rose-700">{error}</p> : !url ? <p className="inline-flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading secure file</p> : preview ? <iframe title={filename} src={url} className="min-h-[70vh] w-full rounded-xl border border-slate-200" /> : <div className="text-center"><FileWarning className="mx-auto h-8 w-8 text-teal" /><p className="mt-4">Preview is not available for this file type.</p><a href={url} download={filename} className="focus-ring portal-button-primary mt-6"><Download className="h-4 w-4" />Download file</a></div>}</section></div>;
 }

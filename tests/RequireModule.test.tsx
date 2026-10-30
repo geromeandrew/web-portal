@@ -30,7 +30,6 @@ describe("workspace route access", () => {
         root.render(
           <MemoryRouter
             initialEntries={["/workspace"]}
-            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           >
             <Routes>
               <Route path="/" element={<p>Dashboard</p>} />
@@ -59,7 +58,6 @@ describe("workspace route access", () => {
       root.render(
         <MemoryRouter
           initialEntries={["/admin"]}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <Routes>
             <Route path="/" element={<p>Dashboard</p>} />

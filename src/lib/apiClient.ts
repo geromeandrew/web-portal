@@ -90,8 +90,8 @@ export async function apiRequest<T>(
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiClientError(
       response.status,
-      payload?.error.code ?? "REQUEST_FAILED",
-      payload?.error.message ?? `Request failed with status ${response.status}.`,
+      payload?.error?.code ?? "REQUEST_FAILED",
+      (typeof payload?.error?.message === "string" ? payload.error.message : undefined) ?? "The request could not be completed. Please try again.",
     );
   }
   if (response.status === 204) return undefined as T;
@@ -104,8 +104,8 @@ export async function downloadApiFile(path: string, filename: string) {
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiClientError(
       response.status,
-      payload?.error.code ?? "DOWNLOAD_FAILED",
-      payload?.error.message ?? "Download failed.",
+      payload?.error?.code ?? "DOWNLOAD_FAILED",
+      (typeof payload?.error?.message === "string" ? payload.error.message : undefined) ?? "Download failed.",
     );
   }
   const url = URL.createObjectURL(await response.blob());
@@ -127,8 +127,8 @@ export async function fetchApiFile(path: string) {
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiClientError(
       response.status,
-      payload?.error.code ?? "FILE_REQUEST_FAILED",
-      payload?.error.message ?? "The file could not be loaded.",
+      payload?.error?.code ?? "FILE_REQUEST_FAILED",
+      (typeof payload?.error?.message === "string" ? payload.error.message : undefined) ?? "The file could not be loaded.",
     );
   }
   return {
