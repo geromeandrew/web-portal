@@ -9,3 +9,6 @@ outputs/
 .env
 .env.*
 !.env.example
+coverage/
+.pnpm-store/
+*.log

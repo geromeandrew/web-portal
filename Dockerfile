@@ -47,7 +47,6 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV VITE_OKTA_CLIENT_ID=$VITE_OKTA_CLIENT_ID
 ENV VITE_OKTA_ISSUER=$VITE_OKTA_ISSUER
 
-RUN echo "DEBUG: Client ID is $VITE_OKTA_CLIENT_ID and Issuer is $VITE_OKTA_ISSUER"
 
 # Install build dependencies
 RUN apk update && apk add --no-cache curl bash
@@ -62,7 +61,7 @@ RUN AUTH_BASE64=$(printf "%s:%s" "$JFROG_USERNAME" "$JFROG_PASSWORD" | base64 | 
     echo "//${ARTIFACTORY_URL}/artifactory/api/npm/hmd-npm-virtual/:_auth=${AUTH_BASE64}" >> ~/.npmrc && \
     echo "always-auth=true" >> ~/.npmrc
 
-RUN npm install 
+RUN npm install --global pnpm@10.30.2 && pnpm install --frozen-lockfile
 
 # Run React compilation
 RUN NODE_OPTIONS="--max_old_space_size=1024" npm run build
@@ -85,7 +84,9 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 
 # Copy Compiled Static React Web Assets from Stage 1
+COPY nginx/production.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
 
 # Set open file and directory ownership for the unprivileged runtime engine
 RUN chown -R nginx:nginx /usr/share/nginx/html

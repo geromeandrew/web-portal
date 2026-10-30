@@ -10,3 +10,8 @@ coverage
 *.tsbuildinfo
 .wrangler
 *.log
+
+# Local documentation, review evidence and tool caches are not build inputs.
+docs/
+.pnpm-store/
+.playwright-cli/
