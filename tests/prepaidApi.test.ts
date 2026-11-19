@@ -1,7 +1,13 @@
-import { formatMoney, uploadSource } from "../src/lib/prepaidApi";
+import {
+  formatMoney,
+  uploadSource,
+  matchesPrepaidSourceName,
+  findPrepaidUploadSource,
+} from "../src/lib/prepaidApi";
 const auth = vi.hoisted(() => ({
   getAccessTokenForRequest: vi.fn(),
   renewAccessToken: vi.fn(),
+  apiRequest: vi.fn(),
 }));
 vi.mock("../src/lib/apiClient", () => ({
   ...auth,
@@ -16,6 +22,61 @@ vi.mock("../src/lib/apiClient", () => ({
   },
 }));
 describe("Prepaid upload transport", () => {
+  it("uses accepted upload names before cycle coverage is configured, retaining strict filenames", () => {
+    const source = {
+      code: "308_21",
+      fileName: "308. Billed Adjustments Monthly Summary Report_G_BC21.XLSX",
+    };
+    const files = {
+      required: [{ code: "ke24", fileName: "KE24.XLSX" }],
+      accepted: [source],
+      collectionOnly: true,
+      missing: [],
+      valid: false,
+      files: [],
+      upstream: null,
+    };
+    expect(
+      findPrepaidUploadSource(files, source.fileName.toLowerCase()),
+    ).toEqual(source);
+    expect(
+      findPrepaidUploadSource(
+        files,
+        "308. Billed Adjustments Monthly Summary Report_G_BC27.XLSX",
+      ),
+    ).toBeUndefined();
+    expect(
+      findPrepaidUploadSource(files, "../" + source.fileName),
+    ).toBeUndefined();
+    expect(findPrepaidUploadSource(null, source.fileName)).toBeUndefined();
+    expect(
+      findPrepaidUploadSource({ ...files, accepted: undefined }, "KE24.xlsx")
+        ?.code,
+    ).toBe("ke24");
+  });
+  it("uses API-provided legacy aliases without loosening other filenames", () => {
+    const source = {
+      code: "callcard_eg",
+      fileName: "CALLCARD_EG.XLSX",
+      acceptedFileNames: ["CALLCARD_EG.XLSX", "EG CALLCARD.xlsx"],
+    };
+    expect(matchesPrepaidSourceName(source, "eg callcard.XLSX")).toBe(true);
+    expect(matchesPrepaidSourceName(source, "CALLCARD_EG.xlsx")).toBe(true);
+    expect(matchesPrepaidSourceName(source, "SG CALLCARD.xlsx")).toBe(false);
+    expect(matchesPrepaidSourceName(source, "../EG CALLCARD.xlsx")).toBe(false);
+    expect(
+      matchesPrepaidSourceName(
+        { code: "ke24", fileName: "KE24.XLSX" },
+        "KE24.xlsx",
+      ),
+    ).toBe(true);
+    expect(
+      matchesPrepaidSourceName(
+        { code: "ke24", fileName: "KE24.XLSX" },
+        "EG CALLCARD.xlsx",
+      ),
+    ).toBe(false);
+  });
   let statuses: number[], instances: FakeXHR[];
   class FakeXHR {
     upload: {
@@ -27,6 +88,7 @@ describe("Prepaid upload transport", () => {
     } = {};
     status = 0;
     responseText = "{}";
+    form?: FormData;
     onload?: () => void;
     onabort?: () => void;
     onerror?: () => void;
@@ -41,14 +103,23 @@ describe("Prepaid upload transport", () => {
     setRequestHeader(name: string, value: string) {
       this.headers[name] = value;
     }
-    send() {
+    send(form?: FormData) {
+      this.form = form;
       this.upload.onprogress?.({
         lengthComputable: true,
         loaded: 25,
         total: 100,
       });
       this.status = statuses.shift() ?? 200;
-      queueMicrotask(() => this.onload?.());
+      this.responseText =
+        this.status === 503
+          ? JSON.stringify({
+              error: { code: "PREPAID_UPLOAD_BUSY", message: "Busy" },
+            })
+          : JSON.stringify({ id: form?.get("uploadId") });
+      queueMicrotask(() =>
+        this.status === 0 ? this.onerror?.() : this.onload?.(),
+      );
     }
     abort() {
       this.onabort?.();
@@ -155,5 +226,110 @@ describe("Prepaid upload transport", () => {
       "1,000,000,000,000,000,000,000.00",
     );
     expect(formatMoney("-0.004", 2)).toBe("0.00");
+  });
+  it("reconciles a lost response by the exact upload ID without resending or matching an older filename", async () => {
+    statuses = [0];
+    auth.apiRequest.mockImplementation(async () => ({
+      sources: {
+        files: [
+          { id: instances[0].form!.get("uploadId"), source_code: "ke24" },
+        ],
+      },
+    }));
+    const progress = vi.fn();
+    await uploadSource(
+      "",
+      "ke24",
+      new File(["PK"], "KE24.XLSX"),
+      new AbortController().signal,
+      progress,
+      true,
+    );
+    expect(instances).toHaveLength(1);
+    expect(progress).toHaveBeenCalledWith(100);
+  });
+  it("retries an interrupted workspace upload with the same identity", async () => {
+    vi.useFakeTimers();
+    try {
+      statuses = [0, 200];
+      auth.apiRequest.mockResolvedValue({ sources: { files: [] } });
+      const promise = uploadSource(
+        "",
+        "ke24",
+        new File(["PK"], "KE24.XLSX"),
+        new AbortController().signal,
+        vi.fn(),
+        true,
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      await promise;
+      expect(instances).toHaveLength(2);
+      expect(instances[1].form!.get("uploadId")).toBe(
+        instances[0].form!.get("uploadId"),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("waits and retries a known admission rejection, but not arbitrary server errors", async () => {
+    vi.useFakeTimers();
+    try {
+      statuses = [503, 200];
+      const promise = uploadSource(
+        "",
+        "ke24",
+        new File(["PK"], "KE24.XLSX"),
+        new AbortController().signal,
+        vi.fn(),
+        true,
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      await promise;
+      expect(instances).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("sends only two multipart requests at a time when ten files are selected", async () => {
+    const held: FakeXHR[] = [];
+    vi.spyOn(FakeXHR.prototype, "send").mockImplementation(function (
+      this: FakeXHR,
+      form,
+    ) {
+      this.form = form;
+      this.status = 200;
+      this.responseText = JSON.stringify({ id: form?.get("uploadId") });
+      held.push(this);
+    });
+    try {
+      const controllers = Array.from(
+        { length: 10 },
+        () => new AbortController(),
+      );
+      const promises = controllers.map((c) =>
+        uploadSource(
+          "",
+          "ke24",
+          new File(["PK"], "KE24.XLSX"),
+          c.signal,
+          vi.fn(),
+          true,
+        ),
+      );
+      await vi.waitFor(() => expect(held).toHaveLength(2));
+      let ended = 0;
+      while (ended < 10) {
+        const count = held.length;
+        for (; ended < count; ended++) held[ended].onload?.();
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+      await Promise.all(promises);
+      expect(held).toHaveLength(10);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

@@ -4,8 +4,10 @@ import {
   getAccessTokenForRequest,
   renewAccessToken,
 } from "./apiClient";
+import { acquirePrepaidUpload } from "./prepaidUploadQueue";
 
 export type Region = "eg" | "sg";
+export type WorkspaceResetContext = { runId: string; eg: number; sg: number };
 export const moneyFields = [
   "gp_mt_gross",
   "hy_mt_gross",
@@ -47,12 +49,28 @@ export type Run = {
   }[];
 };
 export type Sources = {
-  required: { code: string; fileName: string }[];
+  required: { code: string; fileName: string; acceptedFileNames?: string[] }[];
+  accepted?: Sources["required"];
+  collectionOnly?: boolean;
+  guidelines?: string[];
   missing: string[];
   valid: boolean;
   files: { id: string; source_code: string; original_name: string }[];
   upstream: { manifest_key: string } | null;
 };
+export function findPrepaidUploadSource(sources: Sources | null, name: string) {
+  return (sources?.accepted ?? sources?.required ?? []).find((source) =>
+    matchesPrepaidSourceName(source, name),
+  );
+}
+export function matchesPrepaidSourceName(
+  source: Sources["required"][number],
+  name: string,
+) {
+  return [source.fileName, ...(source.acceptedFileNames ?? [])].some(
+    (accepted) => accepted.toLowerCase() === name.toLowerCase(),
+  );
+}
 export type Output = {
   revisionId: string;
   rows: Record<string, unknown>[];
@@ -61,11 +79,12 @@ export type Output = {
   offset: number;
 };
 export type Report = {
-  run_id: string;
+  run_id: string | null;
   snapshot_id: string;
-  period: string;
+  period: string | null;
   uploaded_at: string;
   uploaded_by: string;
+  journals?: { region: Region; filename: string }[] | null;
   revisions: {
     id: string;
     region: Region;
@@ -87,55 +106,118 @@ export async function uploadSource(
   onProgress: (percent: number) => void,
   workspace = false,
 ) {
+  const release = await acquirePrepaidUpload(signal);
+  try {
+    return await sendSource(runId, code, file, signal, onProgress, workspace);
+  } finally {
+    release();
+  }
+}
+
+async function sendSource(
+  runId: string,
+  code: string,
+  file: File,
+  signal: AbortSignal,
+  onProgress: (percent: number) => void,
+  workspace: boolean,
+) {
+  const uploadId = workspace ? crypto.randomUUID() : undefined;
   let token = await getAccessTokenForRequest();
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let renewed = false,
+    retries = 0;
+  while (true) {
     if (signal.aborted)
       throw new DOMException("Upload cancelled", "AbortError");
-    const response = await new Promise<{ status: number; body: unknown }>(
-      (resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const abort = () => xhr.abort();
-        const finish = () => signal.removeEventListener("abort", abort);
-        xhr.open(
-          "POST",
-          `/api/workflows/prepaid/${workspace ? "workspace" : `runs/${runId}`}/sources/${encodeURIComponent(code)}`,
-        );
-        xhr.withCredentials = true;
-        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable)
-            onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
-        };
-        xhr.onload = () => {
-          finish();
-          let body: unknown;
-          try {
-            body = JSON.parse(xhr.responseText);
-          } catch {
-            body = null;
-          }
-          resolve({ status: xhr.status, body });
-        };
-        xhr.onerror = () => {
-          finish();
-          reject(
-            new Error(
-              "Upload connection failed. Refresh to check whether it completed.",
-            ),
+    let response: { status: number; body: unknown };
+    try {
+      response = await new Promise<{ status: number; body: unknown }>(
+        (resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          const abort = () => xhr.abort();
+          const finish = () => signal.removeEventListener("abort", abort);
+          xhr.open(
+            "POST",
+            `/api/workflows/prepaid/${workspace ? "workspace" : `runs/${runId}`}/sources/${encodeURIComponent(code)}`,
           );
-        };
-        xhr.onabort = () => {
-          finish();
-          reject(new DOMException("Upload cancelled", "AbortError"));
-        };
-        signal.addEventListener("abort", abort, { once: true });
-        const form = new FormData();
-        form.append("file", file);
-        xhr.send(form);
-      },
-    );
-    if (response.status === 401 && attempt === 0 && token) {
+          xhr.withCredentials = true;
+          xhr.timeout = 300000;
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable)
+              onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+          };
+          xhr.onload = () => {
+            finish();
+            let body: unknown;
+            try {
+              body = JSON.parse(xhr.responseText);
+            } catch {
+              body = null;
+            }
+            resolve({ status: xhr.status, body });
+          };
+          xhr.onerror = () => {
+            finish();
+            reject(new TypeError("Upload connection interrupted."));
+          };
+          xhr.ontimeout = () => {
+            finish();
+            reject(new TypeError("Upload timed out."));
+          };
+          xhr.onabort = () => {
+            finish();
+            reject(new DOMException("Upload cancelled", "AbortError"));
+          };
+          signal.addEventListener("abort", abort, { once: true });
+          const form = new FormData();
+          form.append("file", file);
+          if (uploadId) form.append("uploadId", uploadId);
+          if (signal.aborted) {
+            finish();
+            reject(new DOMException("Upload cancelled", "AbortError"));
+            return;
+          }
+          xhr.send(form);
+        },
+      );
+    } catch (error) {
+      if (signal.aborted || (error as Error).name === "AbortError")
+        throw new DOMException("Upload cancelled", "AbortError");
+      if (!(error instanceof TypeError) || !workspace) throw error;
+      // A lost response is not proof of failure. Reconcile this exact immutable
+      // upload ID, never merely a matching filename from an older upload.
+      try {
+        const state = await prepaid<{ sources: Sources }>("/workspace");
+        if (
+          state.sources.files.some(
+            (f) => f.id === uploadId && f.source_code === code,
+          )
+        ) {
+          onProgress(100);
+          return { id: uploadId! };
+        }
+      } catch {
+        /* Retry the same ID safely; the server verifies bytes/ownership. */
+      }
+      if (retries++ >= 2)
+        throw new Error(
+          "Upload could not be confirmed after reconnecting. Refresh the workspace before retrying.",
+        );
+      await uploadDelay(1000 * retries, signal);
+      continue;
+    }
+    if (response.status === 401 && !renewed && token) {
+      renewed = true;
       token = await renewAccessToken();
+      continue;
+    }
+    if (
+      response.status === 503 &&
+      (response.body as any)?.error?.code === "PREPAID_UPLOAD_BUSY" &&
+      retries++ < 2
+    ) {
+      await uploadDelay(1000 * retries, signal);
       continue;
     }
     if (response.status < 200 || response.status >= 300) {
@@ -148,9 +230,35 @@ export async function uploadSource(
         error?.error?.message ?? "Upload failed.",
       );
     }
+    if (uploadId && (response.body as any)?.id !== uploadId)
+      throw new ApiClientError(
+        502,
+        "UPLOAD_RECEIPT_INVALID",
+        "The upload response did not confirm this file. Refresh the workspace.",
+      );
     onProgress(100);
-    return;
+    return {
+      id: uploadId ?? ((response.body as any)?.id as string | undefined),
+    };
   }
+}
+
+function uploadDelay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Upload cancelled", "AbortError"));
+      return;
+    }
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Upload cancelled", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", abort, { once: true });
+  });
 }
 
 /** Format decimal strings without converting financial amounts to floating point. */
@@ -177,3 +285,16 @@ export function formatMoney(value: unknown, places?: number) {
     (fraction !== undefined ? "." + fraction : "")
   );
 }
+
+export type PrepaidImportStage = "extracting" | "refreshing-reference" | "importing-layouts";
+
+export type PrepaidBatchStatus = {
+  id: string;
+  canReview: boolean;
+  status: "queued" | "running" | "review" | "failed" | "closed";
+  phase: "import" | Region | "cleanup" | "release";
+  deliveryEnabled: boolean;
+  executions: Partial<Record<"import" | Region, { status: string; startedAt?: string; importStage?: PrepaidImportStage; journal?: { filename: string } }>>;
+  layouts: Partial<Record<Region, { label: string; gross: string | null; frozen?: boolean | null }[]>>;
+  error: string | null;
+};

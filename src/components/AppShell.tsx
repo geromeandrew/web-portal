@@ -71,18 +71,18 @@ export default function AppShell() {
   return (
     <div className={shellUi.shell}>
       <header className={shellUi.header}>
-        <div className={cn(shellUi.headerContent, location.pathname.startsWith('/prepaid') && 'relative !h-[84px]')}>
+        <div className={shellUi.headerContent}>
           <NavLink
             to="/"
             end
             onClick={closeMenus}
-            className={cn(shellUi.logo, location.pathname.startsWith('/prepaid') && '!text-[26px]')}
+            className={shellUi.logo}
             aria-label="ES-ATP Dashboard"
           >
             ES-ATP
           </NavLink>
 
-          <nav className={cn(shellUi.desktopNav,location.pathname.startsWith('/prepaid') && 'lg:absolute lg:left-1/2 lg:-translate-x-1/2')} aria-label="Primary navigation">
+          <nav className={shellUi.desktopNav} aria-label="Primary navigation">
             <NavLink
               to="/"
               end
@@ -151,7 +151,7 @@ export default function AppShell() {
             >
               <LogOut className="h-4 w-4" />
             </button>
-            <img src={globeLogo} alt="Globe" className={cn(shellUi.globeLogo,location.pathname.startsWith('/prepaid') && '!h-[40px]')} />
+            <img src={globeLogo} alt="Globe" className={shellUi.globeLogo} />
             <button
               type="button"
               onClick={() => setMobileOpen((open) => !open)}
@@ -189,7 +189,7 @@ export default function AppShell() {
         ) : null}
       </header>
 
-      <main className={cn("mx-auto min-h-[calc(100vh-72px)] w-full max-w-none px-5 py-10 sm:px-8 sm:py-12 lg:w-[84.7%] lg:px-0 lg:py-14", location.pathname.startsWith('/prepaid') && '!py-0')}>
+      <main className="mx-auto min-h-[calc(100vh-72px)] w-full max-w-none px-5 py-10 sm:px-8 sm:py-12 lg:w-[84.7%] lg:px-0 lg:py-14">
         <Outlet />
       </main>
     </div>

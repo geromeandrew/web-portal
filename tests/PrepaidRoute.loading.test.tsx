@@ -36,7 +36,6 @@ it("shows prepaid guidelines before run data is ready and preserves the upload l
       root.render(
         <MemoryRouter
           initialEntries={["/prepaid/file-upload"]}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <Routes>
             <Route path="/prepaid/:section" element={<PrepaidRoute />} />
