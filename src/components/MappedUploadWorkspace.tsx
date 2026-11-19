@@ -45,6 +45,16 @@ type FlatRow = {
 const batchLabel = (value: string) =>
   `Batch_${new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)).replaceAll("/", "")}`;
 
+function matchesEomUpload(expected: string, name: string) {
+  const ext = expected.match(/\.[^.]+$/)?.[0].toLowerCase();
+  if (!ext || !name.toLowerCase().endsWith(ext)) return false;
+  const number = expected.match(/^(\d+)(?=[.\s_-])/i)?.[1];
+  if (number) return name.match(/^(\d+)(?=[.\s_-])/i)?.[1] === number;
+  const stem = expected.slice(0, -ext.length).toLowerCase();
+  const uploaded = name.slice(0, -ext.length).toLowerCase();
+  return uploaded === stem || uploaded.startsWith(`${stem}_`);
+}
+
 function matches(
   file: File,
   requirement: ProcessingPipelineFileDto,
@@ -60,6 +70,8 @@ function matches(
       /(?:^|[^a-z0-9])aur\s+extract(?=$|[^a-z0-9])/i.test(name) &&
       name.endsWith(".xlsx")
     );
+  if (pipelineCode?.startsWith("bss_eom_") && requirement.match === "exact")
+    return matchesEomUpload(expected, name);
   if (requirement.match !== "glob") {
     // Windows can hide the existing extension when a user renames a workbook.
     // Accept repeated Excel extensions only when the full mapped stem matches.
@@ -262,6 +274,12 @@ export default function MappedUploadWorkspace({
           : matches(file, item, pipelineCode),
       ),
     }));
+    const ambiguous = chosen.find((file) => pipelineCode.startsWith("bss_eom_") &&
+      files.filter((item) => matches(file, item, pipelineCode)).length > 1);
+    if (ambiguous) {
+      setNotice(`${ambiguous.name} matches more than one required file.`);
+      return;
+    }
     const invalid = assignments.find((item) => !item.expected);
     if (invalid) {
       setNotice(
