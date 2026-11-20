@@ -28,7 +28,26 @@ const previewUser: UserDto = {
   displayName: "Juan Miguel Dela Cruz",
   createdAt: "2026-01-01T00:00:00.000Z",
   isAdmin: true,
-  modules: [],
+  // The dashboard filters workspace cards by module ID, even for admins.
+  // This preview account bypasses `/auth/me`, so mirror the active module
+  // catalog here to make every workspace visible while Okta is disabled.
+  modules: [
+    "bss_billcycle_glob",
+    "bss_billcycle_inov",
+    "bss_billcycle_bayn",
+    "bss_eom_glob",
+    "bss_eom_inov",
+    "bss_eom_bayn",
+    "memo_sst",
+    "iccbs_inov",
+    "iccbs_bayn",
+    "aprm_voice_accrual",
+    "aprm_voice_delta",
+    "isms_ibob_actzn",
+    "isms_iot_da",
+    "north",
+    "prepaid_reclass",
+  ].map((moduleId) => ({ moduleId, moduleName: moduleId, routePath: "", accessLevel: "BUSINESS_USER" as const })),
 };
 
 /**

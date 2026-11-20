@@ -46,7 +46,7 @@ export default function App() {
           path="/prepaid/:section"
           element={
             <RequireModule moduleId="prepaid_reclass">
-              <PrepaidRoute pipelineCode="prepaid_reclass" />
+              <PrepaidRoute />
             </RequireModule>
           }
         />
@@ -54,7 +54,7 @@ export default function App() {
           path="/prepaid/:section/:region/:variant"
           element={
             <RequireModule moduleId="prepaid_reclass">
-              <PrepaidRoute pipelineCode="prepaid_reclass" />
+              <PrepaidRoute />
             </RequireModule>
           }
         />
