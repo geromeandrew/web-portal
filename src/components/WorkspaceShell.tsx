@@ -67,6 +67,7 @@ type WorkspaceShellProps = {
   children: ReactNode;
   titleId?: string;
   headerAction?: ReactNode;
+  contentClassName?: string;
 };
 
 export default function WorkspaceShell({
@@ -75,6 +76,7 @@ export default function WorkspaceShell({
   children,
   titleId = "workspace-title",
   headerAction,
+  contentClassName,
 }: WorkspaceShellProps) {
   return (
     <div className={workspaceUi.page}>
@@ -84,7 +86,10 @@ export default function WorkspaceShell({
         aria-hidden="true"
         className="pointer-events-none absolute right-0 top-0 hidden w-[31rem] object-contain opacity-60 lg:block"
       />
-      <section className={workspaceUi.content} aria-labelledby={titleId}>
+      <section
+        className={[workspaceUi.content, contentClassName].filter(Boolean).join(" ")}
+        aria-labelledby={titleId}
+      >
         <h1 id={titleId} className={workspaceUi.title}>
           {title}
         </h1>
