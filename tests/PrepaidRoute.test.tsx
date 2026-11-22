@@ -107,6 +107,41 @@ describe("Prepaid refined workspace", () => {
     expect(container.textContent).not.toContain("UPLOAD ACTIVITY");
     expect(container.querySelectorAll(".pp-file")).toHaveLength(0);
   });
+  it("starts partial AWS processing only after clicking Step 2", async () => {
+    fixture = createPrepaidFixture("upload");
+    let started = false;
+    api.apiRequest.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path.endsWith("/workspace/prepare")) {
+        started = true;
+        expect(JSON.parse(String(options?.body))).toEqual({});
+        return {};
+      }
+      if (path.endsWith("/workspace")) {
+        return {
+          session: null, run: null, error: null,
+          awsBatchEnabled: true, awsBatchActive: started, billCycles: ["01", "21"],
+          awsBatch: started ? {
+            id: "batch", phase: "import", status: "queued",
+            executions: {}, layouts: {}, deliveryEnabled: true,
+          } : null,
+          sources: {
+            ...fixture.sources,
+            files: [{ id: "upload", source_code: "monthly_recharge", original_name: "recharge.csv" }],
+          },
+        };
+      }
+      return fixture.request(path, options);
+    });
+    await render("/prepaid/file-upload");
+    expect(container.textContent).not.toContain("Start processing");
+    expect(started).toBe(false);
+    const step2 = container.querySelector<HTMLButtonElement>('[aria-label="Step 2: Edit & validate"]')!;
+    expect(step2.disabled).toBe(false);
+    await click("2");
+    expect(started).toBe(true);
+    expect(container.querySelector(".pp-step[aria-current=step]")?.textContent).toBe("2");
+    expect(step2.disabled).toBe(true);
+  });
   it("shows nonblocking reference notes in the existing panel when validation passes", async () => {
     fixture.layouts.eg.validation = {
       valid: true,
@@ -540,7 +575,7 @@ describe("Prepaid refined workspace", () => {
       return request(path, options);
     });
     await render("/prepaid/file-upload");
-    expect(container.textContent).toContain("Ready for review");
+    expect(container.textContent).not.toContain("Ready for review");
     expect(container.textContent).not.toContain("AWS batch");
     expect(button("Reset").disabled).toBe(false);
     await click("Reset");
@@ -595,7 +630,7 @@ describe("Prepaid refined workspace", () => {
     expect(button("Freeze").disabled).toBe(true);
     expect(container.textContent).toContain("Save your changes before freezing this layout.");
     expect(container.querySelector('input[aria-label="CALLCARD hy_mt_gross"]')).not.toBeNull();
-    expect(container.querySelector('input[aria-label="CALLCARD gp_bb_gross"]')).toBeNull();
+    expect(container.querySelector('input[aria-label="CALLCARD gp_bb_gross"]')).not.toBeNull();
     expect(container.querySelector('input[aria-label="CALLCARD gp_mt_gross"]')).not.toBeNull();
     expect(container.querySelector('input[aria-label="AMAXCE hy_mt_gross"]')).toBeNull();
     expect(container.querySelector<HTMLInputElement>('input[aria-label="CALLCARD gp_mt_gross"]')?.disabled).toBe(false);
@@ -660,11 +695,8 @@ describe("Prepaid refined workspace", () => {
       container.querySelector<HTMLButtonElement>(".pp-step")!.click();
       await flush();
     });
-    const status = container.querySelector(".pp-batch-status")!;
-    const uploads = container.querySelector(".pp-upload-grid")!;
-    expect(status.compareDocumentPosition(uploads) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    await click("Review layouts");
+    expect(container.querySelector(".pp-batch-status")).toBeNull();
+    await click("2");
     await act(async () => {
       const allocation = container.querySelector<HTMLSelectElement>("#allocation-tab")!;
       allocation.value = "eg-mt";
@@ -803,7 +835,7 @@ describe("Prepaid refined workspace", () => {
         '[role="dialog"] button[aria-label="Close dialog"]',
       ),
     ).toBeNull();
-    expect(button("Check status")).toBeDefined();
+    expect(button("Check status")).toBeUndefined();
     expect(
       api.apiRequest.mock.calls.some(
         ([, o]) => o?.method === "DELETE" || o?.method === "POST",

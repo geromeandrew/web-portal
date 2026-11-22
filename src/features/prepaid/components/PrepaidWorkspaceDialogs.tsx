@@ -21,19 +21,40 @@ export function PrepaidWorkspaceDialogs({
     pending,
     uploading,
     awsBatchActive,
+    awsBatch,
     awsBatchResetAllowed,
     removeFile,
     removing,
     reset,
     resetting,
+    confirmation,
+    setConfirmation,
   } = workspace;
   const removeReason = awsBatchActive && awsBatchResetAllowed
     ? "Reset the workspace before removing files from this batch."
     : pending || awsBatchActive ? "Wait for processing to finish before removing files."
     : uploading ? "Finish or cancel uploads before removing files." : "";
   const resetBlocked = pending || (awsBatchActive && !awsBatchResetAllowed) || uploading;
+  const preparingUploads = awsBatchActive &&
+    (awsBatch?.phase === "cleanup" || awsBatch?.phase === "release");
   return (
     <>
+      {confirmation && (
+        <Dialog title="Confirm navigation" onClose={() => setConfirmation(null)}>
+          <div className="pp-reset-dialog">
+            <div className="pp-question">?</div>
+            <h2>{confirmation.message}</h2>
+            <div className="pp-actions">
+              <button className="pp-outline" onClick={() => setConfirmation(null)}>Stay</button>
+              <button className="pp-primary" onClick={() => {
+                const proceed = confirmation.proceed;
+                setConfirmation(null);
+                proceed();
+              }}>Continue</button>
+            </div>
+          </div>
+        </Dialog>
+      )}
       <PrepaidProcessingDialog workspace={workspace} />
       {!processing && modal && (
         <Dialog
@@ -132,7 +153,8 @@ export function PrepaidWorkspaceDialogs({
                 <Check size={54} />
               </div>
               <h2>Workspace reset</h2>
-              <p>To start with re-classification, upload your source files</p>
+              <p>{preparingUploads ? "Preparing uploads..." : "To start with re-classification, upload your source files"}</p>
+              {preparingUploads && <LoaderCircle size={20} className="pp-spinner" aria-label="Preparing uploads" />}
               <button className="pp-primary" onClick={close}>
                 Okay, got it
               </button>

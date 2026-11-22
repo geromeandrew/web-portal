@@ -19,6 +19,7 @@ export function PrepaidWorkspaceStatus({
     | "awsBatchActive"
     | "awsBatchEnabled"
     | "awsBatchReviewReady"
+    | "canStartProcessing"
     | "awsBatchResetAllowed"
     | "resetting"
     | "error"
@@ -41,6 +42,7 @@ export function PrepaidWorkspaceStatus({
     awsBatchActive,
     awsBatchEnabled,
     awsBatchReviewReady,
+    canStartProcessing,
     awsBatchResetAllowed,
     resetting,
     error,
@@ -49,8 +51,8 @@ export function PrepaidWorkspaceStatus({
     requestReset,
     dismissMessage,
   } = workspace;
-  const reviewReady = awsBatchEnabled
-    ? awsBatchReviewReady
+  const canOpenStep2 = awsBatchEnabled
+    ? awsBatchReviewReady || canStartProcessing
     : (layouts.eg?.imported && layouts.sg?.imported) || (session?.status === "failed" && sources?.valid);
   return (
     <>
@@ -60,7 +62,8 @@ export function PrepaidWorkspaceStatus({
             <li key={step}>
               <button
                 className={`pp-step ${stage === step ? "active" : stage > step ? "complete" : ""}`}
-                disabled={busy || (step === 2 && !reviewReady)}
+                disabled={busy || (step === 2 && !canOpenStep2)}
+                aria-label={step === 1 ? "Step 1: Upload file" : "Step 2: Edit & validate"}
                 aria-current={stage === step ? "step" : undefined}
                 onClick={() => selectStage(step)}
               >

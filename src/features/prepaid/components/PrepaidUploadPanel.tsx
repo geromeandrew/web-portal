@@ -15,10 +15,12 @@ export function PrepaidUploadPanel({
     | "sources"
     | "input"
     | "startUpload"
+    | "awsBatchEnabled"
     | "busy"
     | "loading"
     | "pending"
     | "awsBatchActive"
+    | "awsBatch"
     | "transfers"
     | "removing"
     | "uploading"
@@ -32,10 +34,12 @@ export function PrepaidUploadPanel({
     sources,
     input,
     startUpload,
+    awsBatchEnabled,
     busy,
     loading,
     pending,
     awsBatchActive,
+    awsBatch,
     transfers,
     removing,
     uploading,
@@ -46,19 +50,28 @@ export function PrepaidUploadPanel({
   } = workspace;
   const filesLocked = pending || awsBatchActive;
   const uploadDisabled = busy || loading || filesLocked || !sources;
+  const preparingUploads = awsBatchActive &&
+    (awsBatch?.phase === "cleanup" || awsBatch?.phase === "release");
+  const guidelines = sources?.guidelines ?? sources?.required.map((source) => source.fileName);
+  const displayedGuidelines = awsBatchEnabled
+    ? [...new Set(guidelines?.map((name) => name.replace(/_BC\d{2}\.XLSX$/i, "")))]
+    : guidelines;
   return (
+    <>
     <div className="pp-upload-grid">
       <div className={`pp-upload-card ${workspaceUi.panel} ${workspaceUi.uploadPanel}`}>
+        {preparingUploads && <WorkspaceLoading label="Preparing uploads..." compact />}
         <div className={workspaceUi.guidance}>
           <h2 className={workspaceUi.guidanceTitle}>
             <img className={workspaceUi.guidanceIcon} src={guidelinesIcon} alt="" />
             File Guidelines
           </h2>
           <p className={workspaceUi.guidanceText}>All files must follow the correct file name convention:</p>
+          {awsBatchEnabled && (
+            <p className={workspaceUi.guidanceText}>Upload at least one report. Billing reports for other cycles are also accepted.</p>
+          )}
           <ul className={`break-words ${workspaceUi.guidanceList}`}>
-            {(
-              sources?.guidelines ?? sources?.required.map((s) => s.fileName)
-            )?.map((name) => (
+            {displayedGuidelines?.map((name) => (
               <li key={name}>{name}</li>
             ))}
           </ul>
@@ -199,5 +212,6 @@ export function PrepaidUploadPanel({
         )}
       </div>
     </div>
+    </>
   );
 }

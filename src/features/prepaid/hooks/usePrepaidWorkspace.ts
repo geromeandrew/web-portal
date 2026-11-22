@@ -77,6 +77,9 @@ export function usePrepaidWorkspace() {
   const [editing, setEditing] = useState(false),
     [changes, setChanges] = useState<Record<string, string>>({});
   const [modal, setModal] = useState<Modal>(null);
+  const [batchDirty, setBatchDirty] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ message: string; proceed: () => void } | null>(null);
+  const confirmAction = (message: string, proceed: () => void) => setConfirmation({ message, proceed });
   const {
     historyDate,
     setHistoryDate,
@@ -150,7 +153,7 @@ export function usePrepaidWorkspace() {
   );
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (dirty || uploading) {
+      if (dirty || batchDirty || uploading) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -158,15 +161,18 @@ export function usePrepaidWorkspace() {
     const click = (e: MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest("a");
       if (
-        (dirty || uploading) &&
+        (dirty || batchDirty || uploading) &&
         anchor?.href &&
-        anchor.href !== location.href &&
-        !window.confirm(
-          "Leave this workspace? Unsaved edits and ongoing uploads may be lost.",
-        )
+        anchor.href !== location.href
       ) {
         e.preventDefault();
         e.stopPropagation();
+        const href = anchor.href;
+        confirmAction("Leave this workspace? Unsaved edits and ongoing uploads may be lost.", () => {
+          const target = new URL(href);
+          if (target.origin === location.origin) navigate(target.pathname + target.search + target.hash);
+          else window.location.assign(href);
+        });
       }
     };
     window.addEventListener("beforeunload", unload);
@@ -175,7 +181,7 @@ export function usePrepaidWorkspace() {
       window.removeEventListener("beforeunload", unload);
       document.removeEventListener("click", click, true);
     };
-  }, [dirty, uploading]);
+  }, [dirty, batchDirty, uploading, navigate]);
   const refresh = useCallback(async (id: string, workspaceToken?: number) => {
     const token = ++generation.current;
     const [next, files, eg, sg] = await Promise.all([
@@ -230,7 +236,7 @@ export function usePrepaidWorkspace() {
     setNotice(state.preparation?.message ?? "");
     if (state.awsBatchEnabled) {
       setHydratingReview(false);
-      if (!state.awsBatchReviewReady) setStage(1);
+      if (!state.awsBatchReviewReady && state.awsBatch?.status !== "queued" && state.awsBatch?.status !== "running") setStage(1);
       return;
     }
     if (state.run) {
@@ -289,22 +295,25 @@ export function usePrepaidWorkspace() {
       }
     }
   };
-  const confirmLeave = () =>
-    !dirty || window.confirm("Discard your unsaved layout edits?");
+  const confirmLeave = (proceed: () => void) => {
+    if (dirty || batchDirty) confirmAction("Discard your unsaved layout edits?", proceed);
+    else proceed();
+  };
   const switchTab = (
     next: Tab,
     nextRegion: Region = region,
     nextVariant = variant,
   ) => {
     if (actionInFlight.current) return;
-    if (!confirmLeave()) return;
-    setEditing(false);
-    setChanges({});
-    setPage(0);
-    navigate(
-      `/prepaid/${next}${next === "allocation" ? `/${nextRegion}/${nextVariant}` : next === "jv" ? `/${nextRegion}/mt` : ""}`,
-    );
-    setStage(2);
+    confirmLeave(() => {
+      setEditing(false);
+      setChanges({});
+      setPage(0);
+      navigate(
+        `/prepaid/${next}${next === "allocation" ? `/${nextRegion}/${nextVariant}` : next === "jv" ? `/${nextRegion}/mt` : ""}`,
+      );
+      setStage(2);
+    });
   };
   const reviewBatchId = awsBatch?.id ?? "current";
   useEffect(() => {
@@ -320,10 +329,8 @@ export function usePrepaidWorkspace() {
     }
   }, [awsBatchReviewReady, navigate, reviewBatchId, stage]);
 
-  const pollAwsBatch = awsBatchEnabled && (awsBatch === undefined
-    ? awsBatchActive || sources?.valid === true
-    : awsBatch?.status === "queued" || awsBatch?.status === "running" ||
-      ((!awsBatch || awsBatch.status === "closed") && sources?.valid === true));
+  const pollAwsBatch = awsBatchEnabled &&
+    (awsBatch?.status === "queued" || awsBatch?.status === "running");
   const waitingForConfiguration = !!session && sources?.collectionOnly === true;
   useEffect(() => {
     if (!pending && !waitingForConfiguration && !pollAwsBatch) return;
@@ -460,6 +467,17 @@ export function usePrepaidWorkspace() {
         );
     }
   };
+  const canStartProcessing =
+    awsBatchEnabled && !!sources?.files.length && !loading && !uploading &&
+    !pending && !awsBatchActive;
+  const startProcessing = () => void perform(async () => {
+    if (!canStartProcessing || activeTransfers.current.some((transfer) => transfer.status === "uploading")) return;
+    await post("/workspace/prepare");
+    setProgressHidden(false);
+    await refreshWorkspace();
+    setStage(2);
+    navigate("/prepaid/eg-layout");
+  });
   const beginEdit = () =>
     void perform(async () => {
       if (!run || !layout?.imported) return;
@@ -610,7 +628,10 @@ export function usePrepaidWorkspace() {
   };
   const selectStage = (step: 1 | 2) => {
     if (actionInFlight.current) return;
-    if (step === 2 && awsBatchEnabled && !awsBatchReviewReady) return;
+    if (step === 2 && awsBatchEnabled && !awsBatchReviewReady) {
+      if (canStartProcessing) startProcessing();
+      return;
+    }
     if (step === 2 && !awsBatchEnabled && session?.status === "failed") {
       void perform(async () => {
         await post("/workspace/prepare");
@@ -618,12 +639,12 @@ export function usePrepaidWorkspace() {
       });
       return;
     }
-    if (confirmLeave()) {
+    confirmLeave(() => {
       setStage(step);
       setEditing(false);
       setChanges({});
       navigate(step === 1 ? "/prepaid/file-upload" : "/prepaid/eg-layout");
-    }
+    });
   };
   const requestReset = () => {
     setError("");
@@ -638,6 +659,10 @@ export function usePrepaidWorkspace() {
   };
   return {
     openHistory,
+    confirmation,
+    setConfirmation,
+    confirmAction,
+    setBatchDirty,
     selectStage,
     requestReset,
     dismissMessage,
@@ -655,6 +680,8 @@ export function usePrepaidWorkspace() {
     awsBatchReviewReady,
     session,
     sources,
+    canStartProcessing,
+    startProcessing,
     perform,
     refreshWorkspace,
     setChanges,
