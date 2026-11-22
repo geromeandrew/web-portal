@@ -122,11 +122,18 @@
 .pp-upload-list {
   min-width: 0;
 }
+.pp-upload-list {
+  height: 529px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #dae5ef;
+  border-radius: 5px;
+}
 .pp-upload-empty {
   background: #f8fbff;
   border: 1px solid #e4edf7;
   border-radius: 5px;
-  min-height: 529px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,9 +191,6 @@
   color: #52677f;
   font-size: 13px;
   margin: 0 0 16px;
-}
-.pp-batch-status {
-  margin: 0;
 }
 .pp-processing-hint svg {
   flex-shrink: 0;
@@ -1061,9 +1065,6 @@
     font-size: 12px;
     line-height: 18px;
   }
-  .pp-upload-empty {
-    min-height: 280px;
-  }
   .pp-period {
     flex-wrap: wrap;
   }
@@ -1101,14 +1102,16 @@
 @media (min-width: 1280px) {
   .pp-upload-grid {
     grid-template-columns: minmax(0, 412fr) minmax(0, 806fr);
+    align-items: stretch;
+  }
+  .pp-upload-list {
+    height: 100%;
+    min-height: 0;
   }
 }
 @media (min-width: 1536px) {
   .pp-upload-grid {
     gap: 12px;
-  }
-  .pp-upload-empty {
-    min-height: 600px;
   }
   .pp-review {
     padding: 24px;

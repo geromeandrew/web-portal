@@ -14,11 +14,11 @@ export type ImportProgress = {
 };
 
 const importStatus = {
-  queued: ["Waiting to start", "Your files are saved. The import will start automatically."],
-  running: ["Processing your reports", "Waiting for the latest import progress."],
-  extracting: ["Extracting your reports", "Your uploaded reports are being read and checked."],
-  "refreshing-reference": ["Refreshing SAP reference data", "Extraction is complete. Reference data is being refreshed before layout import."],
-  "importing-layouts": ["Preparing your review tables", "The EG and SG layouts are being imported."],
+  queued: ["Waiting to start", "Your files are ready."],
+  running: ["Processing your reports", "Preparing the import."],
+  extracting: ["Extracting your reports", "Reading your uploaded files."],
+  "refreshing-reference": ["Refreshing SAP reference data", "Updating reference data."],
+  "importing-layouts": ["Preparing your review tables", "Importing EG and SG layouts."],
 };
 
 /** Waiting screen for server preparation. Upload transfers stay in file rows. */
@@ -29,8 +29,6 @@ export function PrepaidProcessing({
   progress,
   now,
   connectionIssue,
-  checking,
-  onCheck,
 }: {
   finalizing: boolean;
   awsImport?: ImportProgress;
@@ -38,8 +36,6 @@ export function PrepaidProcessing({
   progress: ExtractionProgress | null;
   now: number;
   connectionIssue: boolean;
-  checking: boolean;
-  onCheck: () => void;
 }) {
   const [importNow, setImportNow] = useState(Date.now);
   const awsStartedAt = awsImport?.startedAt;
@@ -71,8 +67,8 @@ export function PrepaidProcessing({
         {stage
           ? importStatus[stage][1]
           : publishing
-            ? "We are building the EG and SG layouts, allocations and journal vouchers."
-            : "Your files are saved. Please wait while your reports are checked and extracted. This can take several minutes."}
+            ? "Preparing EG and SG layouts."
+            : "Reading your uploaded files."}
       </p>
       <ol className="pp-processing-steps">
         {steps.map((step, index) => (
@@ -130,18 +126,12 @@ export function PrepaidProcessing({
       )}
       {connectionIssue && (
         <p className="pp-processing-connection" role="status">
-          We could not get the latest status. Processing may still be running on
-          the server. We will check again automatically.
+          Connection interrupted. Checking again automatically.
         </p>
       )}
       <p className="pp-processing-footnote">
-        You can hide this window and switch workspaces while processing continues.
+        You can hide this window while processing continues.
       </p>
-      <div className="pp-dialog-actions">
-        <button className="pp-outline" disabled={checking} onClick={onCheck}>
-          {checking ? "Checking…" : "Check status"}
-        </button>
-      </div>
     </div>
   );
 }

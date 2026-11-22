@@ -20,14 +20,8 @@ type Review = {
   pendingJournal: boolean;
   canEdit?: boolean;
   layoutVersion?: string;
-};
-
-const stages = {
-  queued: "Waiting to start",
-  running: "In progress",
-  review: "Ready for review",
-  failed: "Failed",
-  closed: "Closed",
+  freezeInputReason?: string | null;
+  unavailableReason?: string;
 };
 
 type Workspace = Pick<PrepaidWorkspaceController, "stage" | "selectStage" | "tab" | "region" | "variant" | "switchTab" | "page" | "setPage" | "busy" | "perform">;
@@ -108,6 +102,11 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   }, [breakdownOpen, breakdownPage, breakdownAttempt, canLoad, batchId, section, region, variant]);
   const [editVersion, setEditVersion] = useState<string>();
   const [changes, setChanges] = useState<Record<string, string>>({});
+  const setBatchDirty = processingWorkspace?.setBatchDirty;
+  useEffect(() => {
+    setBatchDirty?.(Object.keys(changes).length > 0);
+    return () => setBatchDirty?.(false);
+  }, [changes, setBatchDirty]);
 
   useEffect(() => {
     setEditVersion(undefined);
@@ -248,21 +247,9 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
               stage: batch.executions.import?.importStage ?? (batch.status === "queued" ? "queued" : "running"),
               startedAt: batch.executions.import?.startedAt,
             }}
-            onCheckImport={() => void refresh().catch((e: Error) => setPollError(e.message))}
             importStatusError={!!pollError}
           />
         )}
-        {!statusError && <div className="pp-error pp-notice">
-          <span className="pp-processing-hint pp-batch-status" role="status">
-            {processing && <LoaderCircle size={16} className="pp-spinner" aria-hidden="true" />}
-            {stages[batch.status]}
-          </span>
-          {batch.canReview && (
-            <button type="button" className="pp-link" onClick={() => workspace.selectStage(2)}>
-              Review layouts
-            </button>
-          )}
-        </div>}
         {statusError && <PrepaidActionNotice tone="error">{statusError}</PrepaidActionNotice>}
       </>
     );
@@ -296,6 +283,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
     freezeReason = "The import must complete successfully before you can freeze.";
   else if (pollError) freezeReason = "Wait for the processing status to reconnect before freezing.";
   else if (reviewUnavailable) freezeReason = reviewUnavailable;
+  else if (review?.freezeInputReason) freezeReason = review.freezeInputReason;
   else if (!zeroVariance) freezeReason = varianceReason;
   const editReason = journal ? freezeReason : processingReason || previousFreeze
     || (locked ? "This layout is already locked." : reviewUnavailable || (!canEditLayout ? "Editing is unavailable for this layout." : ""));
@@ -312,8 +300,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
         ...workspace,
         busy: workspace.busy || busy,
         switchTab: (...args) => {
-          if (!Object.keys(changes).length || window.confirm("Discard your unsaved layout edits?"))
-            workspace.switchTab(...args);
+          workspace.switchTab(...args);
         },
       }} />
       <div className="pp-review">
@@ -354,7 +341,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
             <button
               type="button"
               className="pp-outline"
-              disabled={processing || !review}
+              disabled={processing || !review || !!review.unavailableReason}
               onClick={() => { setBreakdownPage(0); setBreakdownOpen(true); }}
             >
               <Eye size={17} />
@@ -371,7 +358,9 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
         <div className="pp-review-content">
           {section === "layout" && <PrepaidReviewFeedback saving={saving} message={saveMessage} />}
           {(error || batch.error || pollError) && <PrepaidActionNotice tone="error">{error || batch.error || pollError}</PrepaidActionNotice>}
-          {review?.pendingJournal ? (
+          {review?.unavailableReason ? (
+            <PrepaidActionNotice>{review.unavailableReason}</PrepaidActionNotice>
+          ) : review?.pendingJournal ? (
             <PrepaidActionNotice>{previousFreeze || (!batch.deliveryEnabled
               ? "The journal is unavailable while delivery is off."
               : `Freeze the ${label} layout to view and download its journal.`)}</PrepaidActionNotice>
@@ -386,7 +375,6 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
               onRetry={() => setAttempt((value) => value + 1)}
               renderCell={editVersion && section === "layout" ? (row, field) => {
                 const original = String(row[field] ?? "");
-                if (region === "eg" && !original.trim()) return undefined;
                 if (!Array.isArray(row.editable_fields) || !row.editable_fields.includes(field)) return undefined;
                 const key = `${row.layout_number}:${field}`;
                 return (

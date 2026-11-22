@@ -37,7 +37,7 @@ it("shows the automatic batch and only offers freeze on the eligible side", asyn
     ));
     expect(button("Start AWS import")).toBeUndefined();
     expect(post).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("Ready for review");
+    expect(container.textContent).not.toContain("Ready for review");
     await act(async () => root.render(
       <PrepaidAwsBatch workspace={{...workspace, stage: 2, tab: "sg-layout", region: "sg"}} />,
     ));
@@ -127,7 +127,7 @@ it("clears a transient status error when polling recovers", async () => {
     }} />));
     expect(container.textContent).toContain("The request could not be completed");
     await act(async () => vi.advanceTimersByTimeAsync(5000));
-    expect(container.textContent).toContain("Ready for review");
+    expect(container.textContent).not.toContain("Ready for review");
     expect(container.textContent).not.toContain("The request could not be completed");
   } finally {
     await act(async () => root.unmount());

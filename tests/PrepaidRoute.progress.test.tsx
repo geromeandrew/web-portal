@@ -374,8 +374,7 @@ it("uses the workspace batch snapshot on entry and stops polling when review is 
   expect(document.body.textContent).not.toContain("Extraction is complete");
 
   importStage = "refreshing-reference";
-  await act(async () => find("Check status").click());
-  await settle();
+  await act(async () => vi.advanceTimersByTimeAsync(4_000));
   expect(document.body.textContent).toContain("Refreshing SAP reference data");
 
   importStage = "importing-layouts";

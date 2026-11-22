@@ -6,11 +6,9 @@ import type { PrepaidWorkspaceController } from "../hooks/usePrepaidWorkspace";
 export function PrepaidProcessingDialog({
   workspace,
   awsImport,
-  onCheckImport,
   importStatusError,
 }: {
   awsImport?: ImportProgress;
-  onCheckImport?: () => void;
   importStatusError?: boolean;
   workspace: Pick<
     PrepaidWorkspaceController,
@@ -22,8 +20,6 @@ export function PrepaidProcessingDialog({
     | "progress"
     | "progressNow"
     | "progressError"
-    | "checkingProgress"
-    | "checkProcessingStatus"
   >;
 }) {
   const {
@@ -35,8 +31,6 @@ export function PrepaidProcessingDialog({
     progress,
     progressNow,
     progressError,
-    checkingProgress,
-    checkProcessingStatus,
   } = workspace;
   const hideProgress = useCallback(() => setProgressHidden(true), [setProgressHidden]);
   if (!processing && !awsImport) return null;
@@ -56,8 +50,6 @@ export function PrepaidProcessingDialog({
         progress={progress}
         now={progressNow}
         connectionIssue={awsImport ? !!importStatusError : !!progressError}
-        checking={!awsImport && checkingProgress}
-        onCheck={onCheckImport ?? checkProcessingStatus}
       />
     </Dialog>
   );
