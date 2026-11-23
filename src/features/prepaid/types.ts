@@ -1,4 +1,4 @@
-export type Tab = "eg-layout" | "sg-layout" | "allocation" | "jv";
+export type Tab = "eg-layout" | "sg-layout" | "allocation" | "jv" | "reports";
 export type Transfer = {
   code: string;
   file: File;

@@ -2,6 +2,7 @@ import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 import { allocationFields, allocationHeaders } from "../presentation";
 import { PrepaidOutputTable as OutputTable } from "./PrepaidOutputTable";
 import { PrepaidReviewNavigation } from "./PrepaidReviewNavigation";
+import { PrepaidReportsPanel } from "./PrepaidReportsPanel";
 import { PrepaidLayoutTable } from "./PrepaidLayoutTable";
 import { PrepaidFreezeButton } from "./PrepaidFreezeButton";
 import { PrepaidReviewFeedback } from "./PrepaidReviewFeedback";
@@ -49,7 +50,7 @@ export function PrepaidReviewPanel({
   return (
     <>
       <PrepaidReviewNavigation workspace={workspace} />
-      <div className="pp-review">
+      {tab === "reports" ? <PrepaidReportsPanel /> : <div className="pp-review">
         <div className="pp-panel-heading">
           <h2>
             {region.toUpperCase()}{" "}
@@ -164,7 +165,7 @@ export function PrepaidReviewPanel({
             </>
           )}
         </div>
-      </div>
+      </div>}
     </>
   );
 }

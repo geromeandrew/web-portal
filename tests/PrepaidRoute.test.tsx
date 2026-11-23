@@ -142,6 +142,41 @@ describe("Prepaid refined workspace", () => {
     expect(container.querySelector(".pp-step[aria-current=step]")?.textContent).toBe("2");
     expect(step2.disabled).toBe(true);
   });
+  it.each([true, false])("shows the Reports tab for a review batch with AMAXEE availability %s", async (available) => {
+    api.apiRequest.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path.endsWith("/workspace")) {
+        return {
+          session: null, run: null, error: null, awsBatchEnabled: true, awsBatchActive: true,
+          awsBatchReviewReady: true,
+          awsBatch: {
+            id: "current-batch", phase: "import", status: "review", canReview: true,
+            amaxeeReportAvailable: available,
+            executions: { import: { status: "SUCCEEDED", startedAt: "2026-11-23T01:00:00Z" } }, layouts: {},
+          },
+          sources: fixture.sources,
+        };
+      }
+      return fixture.request(path, options);
+    });
+    await render(available ? "/prepaid/eg-layout" : "/prepaid/reports");
+    if (available) {
+      expect(button("Download AMAXEE")).toBeUndefined();
+      await click("Reports");
+    }
+    expect(button("Reports").getAttribute("aria-current")).toBe("page");
+    expect(container.textContent).toContain("AMAXEE Report");
+    if (available) {
+      await click("Download AMAXEE");
+      expect(api.downloadApiFile).toHaveBeenCalledWith(
+        "/workflows/prepaid/aws-batch/current-batch/reports/amaxee.xlsx",
+        "AMAXEE_2026-11-23.xlsx",
+      );
+    } else {
+      expect(button("Download AMAXEE")).toBeUndefined();
+      expect(container.textContent).toContain("Available after a 308 or 318 billing report is processed.");
+    }
+    expect(fixture.calls.some(({ options }) => options?.method === "POST")).toBe(false);
+  });
   it("shows nonblocking reference notes in the existing panel when validation passes", async () => {
     fixture.layouts.eg.validation = {
       valid: true,

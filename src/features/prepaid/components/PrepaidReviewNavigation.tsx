@@ -67,6 +67,9 @@ export function PrepaidReviewNavigation({ workspace }: {
         onClick={() => { setOpen(null); switchTab("sg-layout", "sg"); }}>SG Layout</button>
       {dropdown("allocation", allocationOptions)}
       {dropdown("jv", journalOptions)}
+      <button type="button" className={tab === "reports" ? "active" : ""} disabled={busy}
+        aria-current={tab === "reports" ? "page" : undefined}
+        onClick={() => { setOpen(null); switchTab("reports"); }}>Reports</button>
     </nav>
   );
 }

@@ -8,6 +8,7 @@ import { allocationFields, allocationHeaders, headings } from "../presentation";
 import { PrepaidAllocationBreakdown } from "./PrepaidAllocationBreakdown";
 import { PrepaidOutputTable } from "./PrepaidOutputTable";
 import { PrepaidReviewNavigation } from "./PrepaidReviewNavigation";
+import { PrepaidReportsPanel } from "./PrepaidReportsPanel";
 import { PrepaidActionNotice } from "./PrepaidActionNotice";
 import { PrepaidFreezeButton } from "./PrepaidFreezeButton";
 import { PrepaidReviewFeedback } from "./PrepaidReviewFeedback";
@@ -75,7 +76,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   const section = tab === "allocation" ? "allocation-summary" : tab === "jv" ? "jv" : "layout";
   const batchId = batch?.id;
   const processing = batch?.status === "queued" || batch?.status === "running";
-  const canLoad = workspace.stage === 2 && !!batch?.canReview && !processing;
+  const canLoad = workspace.stage === 2 && tab !== "reports" && !!batch?.canReview && !processing;
   const reviewScope = [batchId, region, section, variant, page].join(":");
   const [loadedReview, setReview] = useState<{ scope: string; data: Review } | null>(null);
   const review = loadedReview?.scope === reviewScope ? loadedReview.data : null;
@@ -303,7 +304,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
           workspace.switchTab(...args);
         },
       }} />
-      <div className="pp-review">
+      {tab === "reports" ? <PrepaidReportsPanel key={batch.id} batch={batch} /> : <div className="pp-review">
         <div className="pp-panel-heading">
           <h2>{label} {title}</h2>
           {section === "layout" && locked && (
@@ -406,7 +407,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
             </div>
           )}
         </div>
-      </div>
+      </div>}
       {breakdownOpen && section === "allocation-summary" && (
         <Dialog title="Allocation breakdown" onClose={closeBreakdown} wide>
           <PrepaidAllocationBreakdown
