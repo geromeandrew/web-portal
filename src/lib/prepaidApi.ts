@@ -291,6 +291,7 @@ export type PrepaidImportStage = "extracting" | "refreshing-reference" | "import
 export type PrepaidBatchStatus = {
   id: string;
   canReview: boolean;
+  amaxeeReportAvailable?: boolean;
   status: "queued" | "running" | "review" | "failed" | "closed";
   phase: "import" | Region | "cleanup" | "release";
   deliveryEnabled: boolean;

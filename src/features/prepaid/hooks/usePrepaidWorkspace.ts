@@ -32,7 +32,9 @@ export function usePrepaidWorkspace() {
         ? "allocation"
         : params.section === "jv"
           ? "jv"
-          : "eg-layout";
+          : params.section === "reports"
+            ? "reports"
+            : "eg-layout";
   const region: Region =
     tab === "sg-layout"
       ? "sg"
