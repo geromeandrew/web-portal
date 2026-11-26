@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Minus, X } from "lucide-react";
 export function PrepaidDialog({
   title,
   onClose,
@@ -10,6 +10,7 @@ export function PrepaidDialog({
   busy = false,
   dismissible = true,
   closeLabel = "Close dialog",
+  minimize = false,
 }: {
   title: string;
   onClose: () => void;
@@ -19,6 +20,7 @@ export function PrepaidDialog({
   busy?: boolean;
   dismissible?: boolean;
   closeLabel?: string;
+  minimize?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const busyRef = useRef(busy);
@@ -84,12 +86,14 @@ export function PrepaidDialog({
       >
         {dismissible && (
           <button
-            className="pp-close"
+            type="button"
+            className={minimize ? "pp-close pp-minimize" : "pp-close"}
             onClick={onClose}
-            aria-label={closeLabel}
+            aria-label={minimize ? "Minimize" : closeLabel}
+            title={minimize ? "Minimize" : undefined}
             disabled={busy}
           >
-            <X size={18} />
+            {minimize ? <Minus size={18} aria-hidden="true" /> : <X size={18} />}
           </button>
         )}
         {children}

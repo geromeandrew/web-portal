@@ -7,6 +7,7 @@ import {
   prepaid,
   uploadSource,
   findPrepaidUploadSource,
+  ungroupPrepaidAmount,
   type Layout,
   type PrepaidBatchStatus,
   type Region,
@@ -55,7 +56,11 @@ export function usePrepaidWorkspace() {
   const [resetting, setResetting] = useState(false);
   const actionInFlight = useRef(false);
   const [awsBatch, setAwsBatch] = useState<PrepaidBatchStatus | null>();
-  const [awsBatchActive, setAwsBatchActive] = useState(false);
+  const [awsImportProgressOpen, setAwsImportProgressOpen] = useState(false);
+  const [awaitingAwsImport, setAwaitingAwsImport] = useState(false);
+  const [awsStatusError, setAwsStatusError] = useState(false);
+  const [serverBatchActive, setServerBatchActive] = useState(false);
+  const awsBatchActive = serverBatchActive || awaitingAwsImport;
   const [awsBatchResetAllowed, setAwsBatchResetAllowed] = useState(false);
   const [awsBatchReviewReady, setAwsBatchReviewReady] = useState(false);
   const openedReviewBatch = useRef<string | null>(null);
@@ -230,12 +235,14 @@ export function usePrepaidWorkspace() {
     setSession(state.session);
     setAwsBatchEnabled(state.awsBatchEnabled === true);
     setAwsBatch(state.awsBatch);
-    setAwsBatchActive(state.awsBatchActive === true);
+    setAwsStatusError(false);
+    if (state.awsBatch?.phase === "import" && state.awsBatch.status !== "closed")
+      setAwaitingAwsImport(false);
+    setServerBatchActive(state.awsBatchActive === true);
     setAwsBatchResetAllowed(state.awsBatchResetAllowed === true);
     setAwsBatchReviewReady(state.awsBatchReviewReady === true);
     setResetContext(state.resetContext ?? null);
     setError(state.error ?? "");
-    setNotice(state.preparation?.message ?? "");
     if (state.awsBatchEnabled) {
       setHydratingReview(false);
       if (!state.awsBatchReviewReady && state.awsBatch?.status !== "queued" && state.awsBatch?.status !== "running") setStage(1);
@@ -335,14 +342,17 @@ export function usePrepaidWorkspace() {
     (awsBatch?.status === "queued" || awsBatch?.status === "running");
   const waitingForConfiguration = !!session && sources?.collectionOnly === true;
   useEffect(() => {
-    if (!pending && !waitingForConfiguration && !pollAwsBatch) return;
+    if (!pending && !waitingForConfiguration && !pollAwsBatch && !awaitingAwsImport) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         await refreshWorkspace();
       } catch (e) {
-        if (!stopped) setError((e as Error).message);
+        if (!stopped) {
+          if (pollAwsBatch || awaitingAwsImport) setAwsStatusError(true);
+          else setError((e as Error).message);
+        }
       } finally {
         if (!stopped) timer = setTimeout(poll, 4000);
       }
@@ -352,7 +362,7 @@ export function usePrepaidWorkspace() {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [pending, waitingForConfiguration, pollAwsBatch, refreshWorkspace]);
+  }, [pending, waitingForConfiguration, pollAwsBatch, awaitingAwsImport, refreshWorkspace]);
   const {
     progress,
     progressError,
@@ -371,7 +381,7 @@ export function usePrepaidWorkspace() {
     const expected = findPrepaidUploadSource(sources, file.name);
     if (!expected) {
       setError(
-        `Unrecognized filename: ${file.name}. Use the exact names in File Guidelines.`,
+        `Unrecognized filename: ${file.name}. Check the required filename parts in File Guidelines.`,
       );
       return;
     }
@@ -475,10 +485,11 @@ export function usePrepaidWorkspace() {
   const startProcessing = () => void perform(async () => {
     if (!canStartProcessing || activeTransfers.current.some((transfer) => transfer.status === "uploading")) return;
     await post("/workspace/prepare");
-    setProgressHidden(false);
-    await refreshWorkspace();
+    setAwsImportProgressOpen(true);
+    setAwaitingAwsImport(true);
     setStage(2);
     navigate("/prepaid/eg-layout");
+    await refreshWorkspace().catch(() => setAwsStatusError(true));
   });
   const beginEdit = () =>
     void perform(async () => {
@@ -495,11 +506,12 @@ export function usePrepaidWorkspace() {
   const saveChanges = () =>
     void perform(async () => {
       if (!run || !layout) return;
-      const cells = Object.entries(changes).map(([key, value]) => {
+      const cells = Object.entries(changes).map(([key, draft]) => {
         const [number, field] = key.split(":");
+        const value = ungroupPrepaidAmount(draft);
         if (value && !/^-?\d{1,28}(?:\.\d{1,10})?$/.test(value))
           throw new Error(
-            "Enter a decimal amount without commas (up to 28 integer and 10 fractional digits).",
+            "Enter a valid amount with up to 28 integer and 10 fractional digits.",
           );
         return { layoutNumber: Number(number), field, value: value || null };
       });
@@ -677,6 +689,10 @@ export function usePrepaidWorkspace() {
     layouts,
     awsBatchEnabled,
     awsBatch,
+    awsImportProgressOpen,
+    setAwsImportProgressOpen,
+    awaitingAwsImport,
+    awsStatusError,
     awsBatchActive,
     awsBatchResetAllowed,
     awsBatchReviewReady,

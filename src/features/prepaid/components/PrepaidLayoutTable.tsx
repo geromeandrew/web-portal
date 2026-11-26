@@ -1,6 +1,6 @@
 import { WorkspaceLoading } from "../../../components/WorkspaceLoading";
 import { PrepaidValidation } from "./PrepaidValidation";
-import { formatMoney, moneyFields } from "../../../lib/prepaidApi";
+import { formatMoney, moneyFields, ungroupPrepaidAmount } from "../../../lib/prepaidApi";
 import { headings } from "../presentation";
 import type { PrepaidWorkspaceController } from "../hooks/usePrepaidWorkspace";
 
@@ -91,11 +91,15 @@ export function PrepaidLayoutTable({
                             aria-label={`${row.label} ${field}`}
                             inputMode="decimal"
                             disabled={busy}
-                            value={changes[key] ?? row[field] ?? ""}
+                            value={changes[key] ?? formatMoney(row[field])}
+                            onBlur={() => setChanges((old) => {
+                              if (old[key] === undefined) return old;
+                              return { ...old, [key]: formatMoney(ungroupPrepaidAmount(old[key])) };
+                            })}
                             onChange={(e) =>
                               setChanges((old) => {
                                 const next = { ...old };
-                                if (e.target.value === (row[field] ?? ""))
+                                if (ungroupPrepaidAmount(e.target.value) === (row[field] ?? ""))
                                   delete next[key];
                                 else next[key] = e.target.value;
                                 return next;

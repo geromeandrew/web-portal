@@ -1,5 +1,17 @@
 import { WorkspaceLoading } from "../../../components/WorkspaceLoading";
-import { formatMoney } from "../../../lib/prepaidApi";
+import { formatMoney, moneyFields } from "../../../lib/prepaidApi";
+
+const amountFields = new Set([
+  ...moneyFields,
+  "gross",
+  "net",
+  "amount",
+  "vat_oct",
+  "difference",
+  "denominator",
+  "amount2",
+  "Amount in local currency",
+]);
 export function PrepaidOutputTable({
   rows,
   fields,
@@ -36,14 +48,7 @@ export function PrepaidOutputTable({
             <tr key={String(row.id ?? row.layout_number ?? i)}>
               {fields.map((field, j) => (
                 <td key={field} className={j ? "pp-number" : ""}>
-                  {renderCell?.(row, field) ?? ([
-                    "gross",
-                    "amount",
-                    "vat_oct",
-                    "total_gross",
-                    "difference",
-                    "amount2",
-                  ].includes(field)
+                  {renderCell?.(row, field) ?? (amountFields.has(field)
                     ? formatMoney(row[field], 2)
                     : ["average_rate", "hits2"].includes(field)
                       ? formatMoney(row[field])

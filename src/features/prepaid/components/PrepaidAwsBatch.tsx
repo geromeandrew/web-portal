@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Eye, LoaderCircle, Pencil, Save } from "lucide-react";
+import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 import { ApiClientError, downloadApiFile } from "../../../lib/apiClient";
 import { PrepaidDialog as Dialog } from "./PrepaidDialog";
-import { prepaid, post, moneyFields, type PrepaidBatchStatus } from "../../../lib/prepaidApi";
+import { formatMoney, prepaid, post, moneyFields, ungroupPrepaidAmount, type PrepaidBatchStatus } from "../../../lib/prepaidApi";
 import type { PrepaidWorkspaceController } from "../hooks/usePrepaidWorkspace";
 import { allocationFields, allocationHeaders, headings } from "../presentation";
 import { PrepaidAllocationBreakdown } from "./PrepaidAllocationBreakdown";
@@ -12,7 +12,7 @@ import { PrepaidReportsPanel } from "./PrepaidReportsPanel";
 import { PrepaidActionNotice } from "./PrepaidActionNotice";
 import { PrepaidFreezeButton } from "./PrepaidFreezeButton";
 import { PrepaidReviewFeedback } from "./PrepaidReviewFeedback";
-import { PrepaidProcessingDialog } from "./PrepaidProcessingDialog";
+import { PrepaidAwsJobProgress } from "./PrepaidAwsJobProgress";
 
 type Side = "eg" | "sg";
 type Review = {
@@ -147,14 +147,14 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
 
     const changedCells = Object.entries(changes).map(([key, value]) => {
       const [layoutNumber, field] = key.split(":");
-      return { layoutNumber: Number(layoutNumber), field, value: value.trim() || null };
+      return { layoutNumber: Number(layoutNumber), field, value: ungroupPrepaidAmount(value) || null };
     });
     if (!changedCells.length) {
       setEditVersion(undefined);
       return;
     }
     if (changedCells.some(({ value }) => value !== null && !/^-?\d{1,28}(?:\.\d{1,10})?$/.test(value))) {
-      setError("Enter valid amounts using a decimal point and no commas.");
+      setError("Enter a valid amount, such as 1,234.56.");
       return;
     }
 
@@ -184,29 +184,40 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
 
   const [confirmSide, setConfirmSide] = useState<Side | null>(null);
   const [pendingSide, setPendingSide] = useState<Side | null>(null);
-  const [completedSide, setCompletedSide] = useState<Side | null>(null);
+  const [expandedFreeze, setExpandedFreeze] = useState<string | null>(null);
   const closeConfirmation = useCallback(() => setConfirmSide(null), []);
-  const closeCompleted = useCallback(() => setCompletedSide(null), []);
-  const ignoreClose = useCallback(() => {}, []);
 
   useEffect(() => {
-    if (!pendingSide || busy || !batch) return;
-    if (batch.executions[pendingSide]?.journal) {
-      setCompletedSide(pendingSide);
+    if (!pendingSide || startingFreeze) return;
+    if (batch?.phase === pendingSide || batch?.executions[pendingSide]?.journal || batch?.status === "closed") {
       setPendingSide(null);
-    } else if (batch.status === "failed" || batch.status === "closed") {
-      setPendingSide(null);
+      return;
     }
-  }, [batch, busy, pendingSide]);
+    if (!hasWorkspaceBatch) return;
+    // An accepted freeze can outlive a failed status read. Retry until the workspace sees it.
+    const timer = window.setInterval(() => {
+      void refresh().catch((e: Error) => setPollError(e.message));
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [batch, hasWorkspaceBatch, pendingSide, refresh, startingFreeze]);
+
+  const awaitingImport = processingWorkspace?.awaitingAwsImport;
+  const phase = pendingSide ?? (awaitingImport ? "import" : batch?.phase);
+  const progressKey = `${batchId}:${phase}`;
+  const setFreezeExpanded = useCallback((open: boolean) => {
+    setExpandedFreeze(open ? progressKey : null);
+  }, [progressKey]);
 
   async function freeze(side: Side) {
     if (side !== region || freezeBlocked) return;
     setConfirmSide(null);
     setPendingSide(side);
+    setExpandedFreeze(`${batchId}:${side}`);
     setStartingFreeze(true);
     setError("");
     try {
       await post("/aws-batch/action", { action: side });
+      setStartingFreeze(false);
       await refresh().catch((e: Error) => setPollError(e.message));
     } catch (e) {
       setPendingSide(null);
@@ -232,25 +243,40 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
     }
   }
 
+  const waitingSide = pendingSide ?? (processing && (phase === "eg" || phase === "sg") ? phase : null);
+  const jobState = awaitingImport || waitingSide || processing ? "active"
+    : batch?.status === "failed" ? "failed"
+    : batch?.status === "review" && (phase === "import" ? batch.canReview
+      : phase && (phase === "eg" || phase === "sg") && !!batch.executions[phase]?.journal) ? "complete" : null;
+  const progressStrip = phase && phase !== "cleanup" && phase !== "release" && jobState && (
+    <PrepaidAwsJobProgress
+      key={progressKey}
+      phase={phase}
+      state={jobState}
+      importProgress={{
+        stage: batch?.executions?.import?.importStage ?? (awaitingImport || batch?.status === "queued" ? "queued" : "running"),
+        startedAt: batch?.executions?.import?.startedAt,
+      }}
+      submitting={startingFreeze && batch?.phase !== phase}
+      queued={batch?.status === "queued"}
+      reconnecting={!!pollError || !!processingWorkspace?.awsStatusError}
+      message={batch?.error}
+      expanded={phase === "import" && processingWorkspace ? processingWorkspace.awsImportProgressOpen : expandedFreeze === progressKey}
+      setExpanded={phase === "import" && processingWorkspace ? processingWorkspace.setAwsImportProgressOpen : setFreezeExpanded}
+      onComplete={() => phase === "import" ? workspace.switchTab("eg-layout", "eg") : workspace.switchTab("jv", phase)}
+    />
+  );
+
   if (!batch || batch.status === "closed")
-    return pollError ? <PrepaidActionNotice tone="error">{pollError}</PrepaidActionNotice> : null;
+    return progressStrip || (pollError ? <PrepaidActionNotice tone="error">{pollError}</PrepaidActionNotice> : null);
   if (batch.phase === "cleanup" || batch.phase === "release")
     return batch.error ? <PrepaidActionNotice tone="error">{batch.error}</PrepaidActionNotice> : null;
 
   if (workspace.stage === 1 || !batch.canReview) {
-    const statusError = error || batch.error || pollError || (batch.status === "failed" ? "Processing did not complete. Contact support if the issue persists." : "");
+    const statusError = error || (!progressStrip && (batch.error || pollError));
     return (
       <>
-        {processing && batch.phase === "import" && processingWorkspace && !processingWorkspace.processing && (
-          <PrepaidProcessingDialog
-            workspace={processingWorkspace}
-            awsImport={{
-              stage: batch.executions.import?.importStage ?? (batch.status === "queued" ? "queued" : "running"),
-              startedAt: batch.executions.import?.startedAt,
-            }}
-            importStatusError={!!pollError}
-          />
-        )}
+        {progressStrip}
         {statusError && <PrepaidActionNotice tone="error">{statusError}</PrepaidActionNotice>}
       </>
     );
@@ -259,20 +285,17 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   const layout = batch.layouts[region];
   const variance = layout?.find((row) => row.label === "Variance")?.gross;
   const gross = typeof variance === "string" ? variance.trim() : "";
-  const zeroVariance = /^[+-]?0+(\.0+)?$/.test(gross);
+  const hasVariance = /^[+-]?\d+(\.\d+)?$/.test(gross);
+  const nonzeroVariance = hasVariance && /[1-9]/.test(gross);
   const label = region.toUpperCase();
   const execution = batch.executions[region];
   const journal = execution?.journal;
-  const waitingSide = pendingSide ?? (processing && (batch.phase === "eg" || batch.phase === "sg") ? batch.phase : null);
   const locked = !!journal || !!layout?.some((row) => row.frozen);
   const processingReason = waitingSide || processing ? "Wait for processing to finish." : "";
   const previousFreeze = !execution || journal ? ""
     : execution.status === "SUCCEEDED" ? "The layout was frozen. Contact support to verify the journal before continuing."
     : "A previous freeze did not complete. Contact support to review its status.";
   const reviewUnavailable = review ? "" : reviewError ? "Reload the layout before continuing." : "Wait for the layout to load.";
-  const varianceReason = /^[+-]?\d+(\.\d+)?$/.test(gross)
-    ? `Gross variance is ${gross}. Reconcile and save the layout until the gross variance is 0.00.`
-    : "Gross variance is unavailable. Refresh the page before freezing this layout.";
   let freezeReason = "";
   if (journal) freezeReason = "Layout frozen and journal delivered";
   else if (processingReason) freezeReason = processingReason;
@@ -285,7 +308,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   else if (pollError) freezeReason = "Wait for the processing status to reconnect before freezing.";
   else if (reviewUnavailable) freezeReason = reviewUnavailable;
   else if (review?.freezeInputReason) freezeReason = review.freezeInputReason;
-  else if (!zeroVariance) freezeReason = varianceReason;
+  else if (!hasVariance) freezeReason = "Gross variance is unavailable. Refresh the page before freezing this layout.";
   const editReason = journal ? freezeReason : processingReason || previousFreeze
     || (locked ? "This layout is already locked." : reviewUnavailable || (!canEditLayout ? "Editing is unavailable for this layout." : ""));
   const freezeBlocked = busy || !!freezeReason;
@@ -297,6 +320,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
 
   return (
     <>
+      {progressStrip}
       <PrepaidReviewNavigation workspace={{
         ...workspace,
         busy: workspace.busy || busy,
@@ -358,7 +382,9 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
         </div>
         <div className="pp-review-content">
           {section === "layout" && <PrepaidReviewFeedback saving={saving} message={saveMessage} />}
-          {(error || batch.error || pollError) && <PrepaidActionNotice tone="error">{error || batch.error || pollError}</PrepaidActionNotice>}
+          {(error || (!progressStrip && (batch.error || pollError))) && (
+            <PrepaidActionNotice tone="error">{error || batch.error || pollError}</PrepaidActionNotice>
+          )}
           {review?.unavailableReason ? (
             <PrepaidActionNotice>{review.unavailableReason}</PrepaidActionNotice>
           ) : review?.pendingJournal ? (
@@ -384,12 +410,16 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
                     aria-label={`${row.label} ${field}`}
                     inputMode="decimal"
                     disabled={busy}
-                    value={changes[key] ?? original}
+                    value={changes[key] ?? formatMoney(original)}
+                    onBlur={() => setChanges((old) => {
+                      if (old[key] === undefined) return old;
+                      return { ...old, [key]: formatMoney(ungroupPrepaidAmount(old[key])) };
+                    })}
                     onChange={(event) => {
                       const value = event.target.value;
                       setChanges((old) => {
                         const next = { ...old };
-                        if (value === original) delete next[key];
+                        if (ungroupPrepaidAmount(value) === original) delete next[key];
                         else next[key] = value;
                         return next;
                       });
@@ -431,42 +461,11 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
             <div className="pp-question">?</div>
             <h2>Freeze the {confirmSide.toUpperCase()} layout?</h2>
             <p>{freezeReason || "This locks the saved layout and delivers its journal."}</p>
+            {nonzeroVariance && <p>Gross variance is {formatMoney(gross.replace(/^\+/, ""))}.</p>}
             <div className="pp-actions">
               <button className="pp-outline" onClick={closeConfirmation}>No, go back</button>
               <button className="pp-primary" disabled={freezeBlocked || confirmSide !== region} onClick={() => void freeze(confirmSide)}>Yes, freeze</button>
             </div>
-          </div>
-        </Dialog>
-      )}
-      {waitingSide && (
-        <Dialog
-          title={`Freezing ${waitingSide.toUpperCase()} layout`}
-          onClose={ignoreClose}
-          dismissible={false}
-          busy
-          compact
-        >
-          <div className="pp-processing-dialog">
-            <div className="pp-processing-symbol" aria-hidden="true">
-              <LoaderCircle size={28} className="pp-spinner" />
-            </div>
-            <h2>Freezing {waitingSide.toUpperCase()} layout</h2>
-            <p className="pp-processing-intro">Preparing and delivering the journal.</p>
-            {pollError && (
-              <p className="pp-processing-intro" role="status">
-                Connection interrupted. Checking for updates...
-              </p>
-            )}
-          </div>
-        </Dialog>
-      )}
-      {completedSide && !waitingSide && (
-        <Dialog title="Freeze complete" onClose={closeCompleted}>
-          <div className="pp-reset-dialog">
-            <div className="pp-success-icon"><Check size={54} /></div>
-            <h2>{completedSide.toUpperCase()} layout frozen</h2>
-            <p>The journal was delivered. You can download it from JV or History.</p>
-            <button className="pp-primary" onClick={closeCompleted}>Okay, got it</button>
           </div>
         </Dialog>
       )}

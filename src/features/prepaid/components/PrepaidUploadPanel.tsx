@@ -66,9 +66,9 @@ export function PrepaidUploadPanel({
             <img className={workspaceUi.guidanceIcon} src={guidelinesIcon} alt="" />
             File Guidelines
           </h2>
-          <p className={workspaceUi.guidanceText}>All files must follow the correct file name convention:</p>
+          <p className={workspaceUi.guidanceText}>Include the report name or number and the EG or SG marker where applicable.</p>
           {awsBatchEnabled && (
-            <p className={workspaceUi.guidanceText}>Upload at least one report. Billing reports for other cycles are also accepted.</p>
+            <p className={workspaceUi.guidanceText}>Upload at least one report. Start billing report filenames with 308 or 318 and end with the cycle (01–31), such as 308_08.xlsx or 318_Report_G_BC08.xlsx.</p>
           )}
           <ul className={`break-words ${workspaceUi.guidanceList}`}>
             {displayedGuidelines?.map((name) => (
