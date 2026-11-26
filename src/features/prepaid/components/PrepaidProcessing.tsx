@@ -13,7 +13,7 @@ export type ImportProgress = {
   startedAt?: string;
 };
 
-const importStatus = {
+export const importStatus = {
   queued: ["Waiting to start", "Your files are ready."],
   running: ["Processing your reports", "Preparing the import."],
   extracting: ["Extracting your reports", "Reading your uploaded files."],
@@ -130,7 +130,7 @@ export function PrepaidProcessing({
         </p>
       )}
       <p className="pp-processing-footnote">
-        You can hide this window while processing continues.
+        You can minimize this window or close the tab while processing continues.
       </p>
     </div>
   );

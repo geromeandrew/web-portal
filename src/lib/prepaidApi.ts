@@ -59,17 +59,51 @@ export type Sources = {
   upstream: { manifest_key: string } | null;
 };
 export function findPrepaidUploadSource(sources: Sources | null, name: string) {
+  const code = prepaidSourceCodeFromName(name);
   return (sources?.accepted ?? sources?.required ?? []).find((source) =>
-    matchesPrepaidSourceName(source, name),
+    source.code === code,
   );
 }
 export function matchesPrepaidSourceName(
   source: Sources["required"][number],
   name: string,
 ) {
-  return [source.fileName, ...(source.acceptedFileNames ?? [])].some(
-    (accepted) => accepted.toLowerCase() === name.toLowerCase(),
-  );
+  return prepaidSourceCodeFromName(name) === source.code;
+}
+function prepaidSourceCodeFromName(name: string) {
+  if (/[\\/\u0000-\u001f]/.test(name)) return undefined;
+  const extension = name.match(/\.(xlsx|csv)$/i);
+  if (!extension) return undefined;
+  const stem = name.slice(0, extension.index).toLowerCase();
+  const report = stem.match(/^(308|318)(?=[. _-])/);
+  if (report) {
+    const cycle = stem.match(/_(?:bc)?(0[1-9]|[12]\d|3[01])$/);
+    if (
+      extension[1].toLowerCase() !== "xlsx" ||
+      !cycle ||
+      /_[bi]$/.test(stem.slice(0, cycle.index))
+    ) return undefined;
+    return `${report[1]}_${cycle[1]}`;
+  }
+
+  const words = stem.split(/[^a-z0-9]+/).filter(Boolean);
+  const title = words.join(" ");
+  if (extension[1].toLowerCase() === "csv")
+    return /\bmonthly recharge\b/.test(title) ? "monthly_recharge" : undefined;
+
+  const eg = words.includes("eg");
+  const sg = words.includes("sg");
+  const region = eg === sg ? undefined : eg ? "eg" : "sg";
+  const reportTypes = [
+    [/\bke24\b/, "ke24"],
+    [/\bcall ?card\b/, "callcard"],
+    [/\bload ?up\b/, "load_up"],
+    [/\bload ?api\b/, "load_api"],
+  ] as const;
+  const matches = reportTypes.filter(([pattern]) => pattern.test(title));
+  if (matches.length !== 1) return undefined;
+  const type = matches[0][1];
+  return type === "ke24" ? type : region ? `${type}_${region}` : undefined;
 }
 export type Output = {
   revisionId: string;
@@ -259,6 +293,13 @@ function uploadDelay(ms: number, signal: AbortSignal) {
     }, ms);
     signal.addEventListener("abort", abort, { once: true });
   });
+}
+
+export function ungroupPrepaidAmount(value: string) {
+  const text = value.trim();
+  return /^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(text)
+    ? text.replaceAll(",", "")
+    : text;
 }
 
 /** Format decimal strings without converting financial amounts to floating point. */

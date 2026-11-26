@@ -1,3 +1,5 @@
+import { formatMoney } from "./prepaidApi";
+
 type Finding = Record<string, unknown>;
 
 function findingRecord(value: unknown): Finding {
@@ -8,6 +10,8 @@ function findingRecord(value: unknown): Finding {
 export function prepaidValidationMessage(finding: unknown): string {
   const item = findingRecord(finding);
   const code = typeof finding === "string" ? finding : item.code;
+  if (code === "LAYOUT_VARIANCE" && item.severity === "warning")
+    return `Gross variance is ${formatMoney(item.amount)}. Review the variance before freezing.`;
   if (item.severity === "warning" && item.policy === "legacy_all_matches") {
     if (code === "REFERENCE_MAPPING_AMBIGUOUS")
       return "Some products match more than one reference rate. Review their rates and quantities in the allocation breakdown. If a rate is unexpected, ask your accounting administrator to verify it.";
@@ -33,7 +37,7 @@ export function prepaidValidationMessage(finding: unknown): string {
     ALLOCATION_BASE_MISSING_OR_ZERO:
       "Some layout amounts have no revenue available for allocation. Check the revenue report and ask your accounting administrator to verify the reference data.",
     LAYOUT_VARIANCE:
-      "The reclassification does not balance. Check your edited amounts and splits until the layout variance is zero.",
+      "Gross variance is unavailable. Save the layout to calculate it before freezing.",
     JV_NOT_BALANCED:
       "The journal debit and credit totals do not balance. Resolve the allocation and layout differences before freezing.",
   };

@@ -1,15 +1,12 @@
 import { useCallback } from "react";
-import { PrepaidProcessing, type ImportProgress } from "./PrepaidProcessing";
+import { PrepaidProcessing } from "./PrepaidProcessing";
 import { PrepaidDialog as Dialog } from "./PrepaidDialog";
+import { PrepaidProgressStrip } from "./PrepaidProgressStrip";
 import type { PrepaidWorkspaceController } from "../hooks/usePrepaidWorkspace";
 
 export function PrepaidProcessingDialog({
   workspace,
-  awsImport,
-  importStatusError,
 }: {
-  awsImport?: ImportProgress;
-  importStatusError?: boolean;
   workspace: Pick<
     PrepaidWorkspaceController,
     | "processing"
@@ -33,24 +30,27 @@ export function PrepaidProcessingDialog({
     progressError,
   } = workspace;
   const hideProgress = useCallback(() => setProgressHidden(true), [setProgressHidden]);
-  if (!processing && !awsImport) return null;
-  if (progressHidden) {
-    return (
-      <button type="button" className="pp-link" onClick={() => setProgressHidden(false)}>
-        View processing progress
-      </button>
-    );
-  }
+  if (!processing) return null;
   return (
-    <Dialog title="Prepaid processing progress" onClose={hideProgress} closeLabel="Hide progress">
-      <PrepaidProcessing
-        finalizing={hydratingReview}
-        awsImport={awsImport}
-        startedAt={uploadStartedAt}
-        progress={progress}
-        now={progressNow}
-        connectionIssue={awsImport ? !!importStatusError : !!progressError}
+    <>
+      <PrepaidProgressStrip
+        state="active"
+        title={hydratingReview ? "Preparing your review tables" : "Extracting your reports"}
+        detail={progressError ? "Reconnecting to check progress." : undefined}
+        action="View progress"
+        onAction={() => setProgressHidden(false)}
       />
-    </Dialog>
+      {!progressHidden && (
+        <Dialog title="Prepaid processing progress" onClose={hideProgress} minimize>
+          <PrepaidProcessing
+            finalizing={hydratingReview}
+            startedAt={uploadStartedAt}
+            progress={progress}
+            now={progressNow}
+            connectionIssue={!!progressError}
+          />
+        </Dialog>
+      )}
+    </>
   );
 }
