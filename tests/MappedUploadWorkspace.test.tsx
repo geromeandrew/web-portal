@@ -432,6 +432,24 @@ describe("MappedUploadWorkspace", () => {
     );
 
     it.each([
+      ["ISMS IB & OB ACTUALIZATION SUMMARY OF INVOICE 10222026.anything", 0],
+      ["summary of accrual ib and ob sap upload", 1],
+    ])(
+      "maps source filename %s to the pipeline filename",
+      async (name, index) => {
+        await openWorkspace();
+        await selectFiles([name]);
+        const upload = api.apiRequest.mock.calls.find(
+          ([path, options]) =>
+            path.endsWith("/files") && options?.method === "POST",
+        );
+        expect((upload?.[1].body as FormData).get("expectedFileName")).toBe(
+          expectedNames[index],
+        );
+      },
+    );
+
+    it.each([
       "ACT_ISMS_IB_OB_03.XLSX.xlsx",
       "ACT_ISMS_IB_OB_01.csv.xlsx",
       "ACT_ISMS_IB_OB_01.XLSX.csv",

@@ -62,6 +62,14 @@ function matches(
 ) {
   const name = file.name.toLowerCase();
   const expected = requirement.expectedFileName.toLowerCase();
+  if (pipelineCode === "isms_ibob_actzn") {
+    const sourceNames: Record<string, string> = {
+      "act_isms_ib_ob_01.xlsx": "isms ib & ob actualization summary of invoice",
+      "act_isms_ib_ob_02.xlsx": "summary of accrual ib and ob sap upload",
+    };
+    if (sourceNames[expected] && name.includes(sourceNames[expected]))
+      return true;
+  }
   if (
     pipelineCode === "aprm_voice_accrual" &&
     /^aur extract final(?:_billing)?\.xlsx$/.test(expected)
@@ -112,9 +120,18 @@ export default function MappedUploadWorkspace({
     const seen = new Set<string>();
     return guidelines.flatMap((file) => {
       const name =
-        pipelineCode === "memo_sst"
-          ? file.expectedFileName.replace(/_[^_]+\.xlsx$/i, "_")
-          : file.expectedFileName;
+        pipelineCode === "isms_ibob_actzn"
+          ? ((
+              {
+                "act_isms_ib_ob_01.xlsx":
+                  "ISMS IB & OB ACTUALIZATION SUMMARY OF INVOICE",
+                "act_isms_ib_ob_02.xlsx":
+                  "SUMMARY OF ACCRUAL IB and OB SAP UPLOAD",
+              } as Record<string, string>
+            )[file.expectedFileName.toLowerCase()] ?? file.expectedFileName)
+          : pipelineCode === "memo_sst"
+            ? file.expectedFileName.replace(/_[^_]+\.xlsx$/i, "_")
+            : file.expectedFileName;
       const identity = name.toLowerCase();
       if (seen.has(identity)) return [];
       seen.add(identity);
@@ -274,8 +291,11 @@ export default function MappedUploadWorkspace({
           : matches(file, item, pipelineCode),
       ),
     }));
-    const ambiguous = chosen.find((file) => pipelineCode.startsWith("bss_eom_") &&
-      files.filter((item) => matches(file, item, pipelineCode)).length > 1);
+    const ambiguous = chosen.find(
+      (file) =>
+        pipelineCode.startsWith("bss_eom_") &&
+        files.filter((item) => matches(file, item, pipelineCode)).length > 1,
+    );
     if (ambiguous) {
       setNotice(`${ambiguous.name} matches more than one required file.`);
       return;
