@@ -37,7 +37,7 @@ export function PrepaidProcessingDialog({
         state="active"
         title={hydratingReview ? "Preparing your review tables" : "Extracting your reports"}
         detail={progressError ? "Reconnecting to check progress." : undefined}
-        action="View progress"
+        action="View processing progress"
         onAction={() => setProgressHidden(false)}
       />
       {!progressHidden && (

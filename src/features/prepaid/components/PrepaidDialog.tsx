@@ -93,7 +93,7 @@ export function PrepaidDialog({
             title={minimize ? "Minimize" : undefined}
             disabled={busy}
           >
-            {minimize ? <Minus size={18} aria-hidden="true" /> : <X size={18} />}
+            {minimize ? <><Minus size={16} aria-hidden="true" /> Minimize</> : <X size={18} />}
           </button>
         )}
         {children}

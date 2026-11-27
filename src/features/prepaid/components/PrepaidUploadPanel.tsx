@@ -20,6 +20,7 @@ export function PrepaidUploadPanel({
     | "loading"
     | "pending"
     | "awsBatchActive"
+    | "uploadsLocked"
     | "awsBatch"
     | "transfers"
     | "removing"
@@ -39,6 +40,7 @@ export function PrepaidUploadPanel({
     loading,
     pending,
     awsBatchActive,
+    uploadsLocked,
     awsBatch,
     transfers,
     removing,
@@ -49,7 +51,7 @@ export function PrepaidUploadPanel({
     setTransfers,
   } = workspace;
   const filesLocked = pending || awsBatchActive;
-  const uploadDisabled = busy || loading || filesLocked || !sources;
+  const uploadDisabled = busy || loading || pending || uploadsLocked || !sources;
   const preparingUploads = awsBatchActive &&
     (awsBatch?.phase === "cleanup" || awsBatch?.phase === "release");
   const guidelines = sources?.guidelines ?? sources?.required.map((source) => source.fileName);
@@ -85,6 +87,7 @@ export function PrepaidUploadPanel({
           multiple
           accept=".xlsx,.csv,.txt"
           hidden
+          disabled={uploadDisabled}
           onChange={(e) => {
             Array.from(e.target.files ?? []).forEach(
               (f) => void startUpload(f),
@@ -106,8 +109,14 @@ export function PrepaidUploadPanel({
           }}
         >
           <img className={workspaceUi.uploadIcon} src={uploadIcon} alt="" />
-          <strong className={workspaceUi.uploadLabel}>Drop files here</strong>
-          <span className={workspaceUi.uploadHint}>or click to browse your computer</span>
+          <strong className={workspaceUi.uploadLabel}>{uploadsLocked ? "Uploads locked" : "Drop files here"}</strong>
+          <span className={workspaceUi.uploadHint}>
+            {uploadsLocked
+              ? awsBatch?.status === "queued" || awsBatch?.status === "running" || !awsBatch
+                ? "Wait for processing to finish."
+                : "Files are locked for this batch."
+              : "or click to browse your computer"}
+          </span>
         </button>
       </div>
       <div className="pp-upload-list">

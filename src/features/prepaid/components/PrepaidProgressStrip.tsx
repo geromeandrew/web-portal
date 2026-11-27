@@ -1,4 +1,5 @@
 import { AlertCircle, Check, LoaderCircle } from "lucide-react";
+import "./PrepaidProgressStrip.css";
 
 export function PrepaidProgressStrip({
   state,

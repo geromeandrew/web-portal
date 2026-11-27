@@ -20,6 +20,8 @@ export function PrepaidWorkspaceStatus({
     | "awsBatchEnabled"
     | "awsBatchReviewReady"
     | "canStartProcessing"
+    | "awsBatchHasNewSources"
+    | "startProcessing"
     | "awsBatchResetAllowed"
     | "resetting"
     | "error"
@@ -43,6 +45,8 @@ export function PrepaidWorkspaceStatus({
     awsBatchEnabled,
     awsBatchReviewReady,
     canStartProcessing,
+    awsBatchHasNewSources,
+    startProcessing,
     awsBatchResetAllowed,
     resetting,
     error,
@@ -52,7 +56,7 @@ export function PrepaidWorkspaceStatus({
     dismissMessage,
   } = workspace;
   const canOpenStep2 = awsBatchEnabled
-    ? awsBatchReviewReady || canStartProcessing
+    ? canStartProcessing || (awsBatchReviewReady && !awsBatchHasNewSources)
     : (layouts.eg?.imported && layouts.sg?.imported) || (session?.status === "failed" && sources?.valid);
   return (
     <>
@@ -75,6 +79,11 @@ export function PrepaidWorkspaceStatus({
             </li>
           ))}
         </ol>
+        {stage === 1 && canStartProcessing && (
+          <button type="button" className="pp-outline" disabled={busy} onClick={startProcessing}>
+            Run processing
+          </button>
+        )}
         <button
           className="pp-link pp-reset"
           disabled={

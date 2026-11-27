@@ -393,3 +393,57 @@ it("uses the workspace batch snapshot on entry and stops polling when review is 
   expect(requests("/workspace")).toBe(4);
   expect(requests("/aws-batch")).toBe(0);
 });
+
+it("returns to uploads after a partial import and locks them after the continuation finishes", async () => {
+  let status: "review" | "running" = "review";
+  let complete = false;
+  let hasNewSources = false;
+  fixture.sources.files.push({ id: "ke24-file", source_code: "ke24", original_name: "KE24.XLSX" });
+  vi.spyOn(prepaidApi, "uploadSource").mockImplementation(async (_run, code, file) => {
+    fixture.sources.files.push({ id: "recharge-file", source_code: code, original_name: file.name });
+    hasNewSources = true;
+    return { id: "recharge-file" } as Awaited<ReturnType<typeof prepaidApi.uploadSource>>;
+  });
+  api.apiRequest.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (path.endsWith("/workspace/prepare")) {
+      status = "running";
+      hasNewSources = false;
+      return {};
+    }
+    if (path.endsWith("/workspace")) return {
+      session: null, run: null, sources: fixture.sources, error: null,
+      awsBatchEnabled: true, awsBatchActive: true, awsBatchHasNewSources: hasNewSources,
+      awsBatchReviewReady: status === "review",
+      awsBatch: {
+        id: "batch", phase: "import", status, canReview: status === "review",
+        canUpload: status === "review" && !complete,
+        executions: { import: { status: status === "review" ? "SUCCEEDED" : "RUNNING" } },
+        layouts: {}, deliveryEnabled: false,
+      },
+    };
+    return fixture.request(path, options);
+  });
+  const uploadStep = () => container.querySelector<HTMLButtonElement>('[aria-label="Step 1: Upload file"]')!;
+  const dropZone = () => container.querySelector<HTMLButtonElement>(".pp-dropzone")!;
+  await render();
+  await act(async () => uploadStep().click());
+  expect(dropZone().disabled).toBe(false);
+  await act(async () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { value: [new File(["report"], "DL_Monthly_Recharge_summary_report.csv")] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(150));
+  await act(async () => find("Run processing").click());
+  expect(document.querySelector('[role="dialog"] button[aria-label="Minimize"]')).not.toBeNull();
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Minimize"]')!.click());
+  expect(find("View processing progress")).toBeDefined();
+  await act(async () => uploadStep().click());
+  expect(dropZone().disabled).toBe(true);
+  status = "review";
+  complete = true;
+  await act(async () => vi.advanceTimersByTimeAsync(4_000));
+  await act(async () => uploadStep().click());
+  expect(dropZone().disabled).toBe(true);
+  expect(find("Run processing")).toBeUndefined();
+});

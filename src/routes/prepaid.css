@@ -199,72 +199,6 @@
   padding: 12px 10px;
   text-align: center;
 }
-.pp-progress-strip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 6px 12px;
-  border: 1px solid #b8d9f5;
-  border-radius: 10px;
-  background: #f4f9ff;
-  color: #172f50;
-}
-.pp-progress-strip > svg {
-  flex: none;
-  color: #007ac8;
-}
-.pp-progress-strip-complete {
-  border-color: #b9e4d2;
-  background: #f2fbf6;
-}
-.pp-progress-strip-complete > svg {
-  color: #19774f;
-}
-.pp-progress-strip-failed {
-  border-color: #edc7c6;
-  background: #fff5f5;
-}
-.pp-progress-strip-failed > svg {
-  color: #a12e2b;
-}
-.pp-progress-strip-copy {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.pp-progress-strip-copy p {
-  display: inline;
-  margin: 0 0 0 10px;
-  color: #57697d;
-}
-.pp-progress-strip button {
-  flex: none;
-  min-height: 28px;
-  padding: 4px 10px;
-  font-size: 12px;
-}
-.pp-close.pp-minimize {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: #176294;
-}
-.pp-close.pp-minimize:hover {
-  border-radius: 6px;
-  background: #edf6ff;
-}
-@media (max-width: 420px) {
-  .pp-progress-strip {
-    flex-wrap: wrap;
-  }
-  .pp-progress-strip button {
-    margin-left: auto;
-  }
-}
 .pp-processing-dialog h2 {
   font-size: 23px;
   font-weight: 800;
@@ -961,6 +895,21 @@
   background: none;
   border: 0;
   padding: 4px;
+}
+.pp-close.pp-minimize {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #176294;
+}
+.pp-close.pp-minimize:hover {
+  border-radius: 6px;
+  background: #edf6ff;
 }
 .pp-reset-dialog {
   text-align: center;

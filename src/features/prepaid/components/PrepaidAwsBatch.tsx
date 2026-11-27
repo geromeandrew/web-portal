@@ -246,7 +246,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   const waitingSide = pendingSide ?? (processing && (phase === "eg" || phase === "sg") ? phase : null);
   const jobState = awaitingImport || waitingSide || processing ? "active"
     : batch?.status === "failed" ? "failed"
-    : batch?.status === "review" && (phase === "import" ? batch.canReview
+    : batch?.status === "review" && (phase === "import" ? batch.canReview && !processingWorkspace?.awsBatchHasNewSources
       : phase && (phase === "eg" || phase === "sg") && !!batch.executions[phase]?.journal) ? "complete" : null;
   const progressStrip = phase && phase !== "cleanup" && phase !== "release" && jobState && (
     <PrepaidAwsJobProgress
@@ -261,6 +261,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
       queued={batch?.status === "queued"}
       reconnecting={!!pollError || !!processingWorkspace?.awsStatusError}
       message={batch?.error}
+      moreReportsAllowed={batch?.canUpload}
       expanded={phase === "import" && processingWorkspace ? processingWorkspace.awsImportProgressOpen : expandedFreeze === progressKey}
       setExpanded={phase === "import" && processingWorkspace ? processingWorkspace.setAwsImportProgressOpen : setFreezeExpanded}
       onComplete={() => phase === "import" ? workspace.switchTab("eg-layout", "eg") : workspace.switchTab("jv", phase)}
@@ -299,6 +300,7 @@ export function PrepaidAwsBatch({ workspace, processingWorkspace }: { workspace:
   let freezeReason = "";
   if (journal) freezeReason = "Layout frozen and journal delivered";
   else if (processingReason) freezeReason = processingReason;
+  else if (batch.phase === "import" && batch.canUpload) freezeReason = "Upload and process all File Guidelines reports before freezing.";
   else if (previousFreeze) freezeReason = previousFreeze;
   else if (locked) freezeReason = "This layout is already locked.";
   else if (editVersion) freezeReason = "Save your changes before freezing this layout.";

@@ -63,7 +63,10 @@ export function usePrepaidWorkspace() {
   const awsBatchActive = serverBatchActive || awaitingAwsImport;
   const [awsBatchResetAllowed, setAwsBatchResetAllowed] = useState(false);
   const [awsBatchReviewReady, setAwsBatchReviewReady] = useState(false);
+  const [awsBatchHasNewSources, setAwsBatchHasNewSources] = useState(false);
+  const uploadsLocked = awaitingAwsImport || (serverBatchActive && awsBatch?.canUpload !== true);
   const openedReviewBatch = useRef<string | null>(null);
+  const stayedOnUpload = useRef(false);
   const [awsBatchEnabled, setAwsBatchEnabled] = useState(false);
   const [session, setSession] = useState<PrepaidUploadSession | null>(null);
   const [sources, setSources] = useState<Sources | null>(null),
@@ -75,6 +78,7 @@ export function usePrepaidWorkspace() {
   const hydratedRun = useRef<string | null>(null),
     processingSeen = useRef(false);
   const workspaceGeneration = useRef(0);
+  const workspaceLoaded = useRef(false);
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -217,6 +221,7 @@ export function usePrepaidWorkspace() {
       awsBatchActive?: boolean;
       awsBatchResetAllowed?: boolean;
       awsBatchReviewReady?: boolean;
+      awsBatchHasNewSources?: boolean;
       session: typeof session;
       run: Run | null;
       sources: Sources;
@@ -236,16 +241,22 @@ export function usePrepaidWorkspace() {
     setAwsBatchEnabled(state.awsBatchEnabled === true);
     setAwsBatch(state.awsBatch);
     setAwsStatusError(false);
-    if (state.awsBatch?.phase === "import" && state.awsBatch.status !== "closed")
+    if (state.awsBatch?.phase === "import" && state.awsBatch.status !== "closed") {
       setAwaitingAwsImport(false);
+      if (!workspaceLoaded.current && (state.awsBatch.status === "queued" || state.awsBatch.status === "running"))
+        setAwsImportProgressOpen(true);
+    }
+    workspaceLoaded.current = true;
     setServerBatchActive(state.awsBatchActive === true);
     setAwsBatchResetAllowed(state.awsBatchResetAllowed === true);
     setAwsBatchReviewReady(state.awsBatchReviewReady === true);
+    setAwsBatchHasNewSources(state.awsBatchHasNewSources === true);
     setResetContext(state.resetContext ?? null);
     setError(state.error ?? "");
     if (state.awsBatchEnabled) {
       setHydratingReview(false);
-      if (!state.awsBatchReviewReady && state.awsBatch?.status !== "queued" && state.awsBatch?.status !== "running") setStage(1);
+      if (state.awsBatchHasNewSources ||
+          (!state.awsBatchReviewReady && state.awsBatch?.status !== "queued" && state.awsBatch?.status !== "running")) setStage(1);
       return;
     }
     if (state.run) {
@@ -326,17 +337,17 @@ export function usePrepaidWorkspace() {
   };
   const reviewBatchId = awsBatch?.id ?? "current";
   useEffect(() => {
-    if (!awsBatchReviewReady) {
+    if (!awsBatchReviewReady || awsBatchHasNewSources) {
       openedReviewBatch.current = null;
       return;
     }
     if (openedReviewBatch.current === reviewBatchId) return;
     openedReviewBatch.current = reviewBatchId;
-    if (stage === 1) {
+    if (stage === 1 && !stayedOnUpload.current) {
       setStage(2);
       navigate("/prepaid/eg-layout", { replace: true });
     }
-  }, [awsBatchReviewReady, navigate, reviewBatchId, stage]);
+  }, [awsBatchReviewReady, awsBatchHasNewSources, navigate, reviewBatchId, stage]);
 
   const pollAwsBatch = awsBatchEnabled &&
     (awsBatch?.status === "queued" || awsBatch?.status === "running");
@@ -374,7 +385,7 @@ export function usePrepaidWorkspace() {
   } = usePrepaidProgress({ session, pending, processing, mounted });
 
   const startUpload = async (file: File) => {
-    if (busy || loading || pending || awsBatchActive) {
+    if (busy || loading || pending || uploadsLocked) {
       setError("Wait for source preparation before uploading.");
       return;
     }
@@ -481,10 +492,12 @@ export function usePrepaidWorkspace() {
   };
   const canStartProcessing =
     awsBatchEnabled && !!sources?.files.length && !loading && !uploading &&
-    !pending && !awsBatchActive;
+    !pending && !awaitingAwsImport &&
+    (!awsBatchActive || awsBatchHasNewSources || awsBatch?.canRetryImport === true);
   const startProcessing = () => void perform(async () => {
     if (!canStartProcessing || activeTransfers.current.some((transfer) => transfer.status === "uploading")) return;
     await post("/workspace/prepare");
+    stayedOnUpload.current = false;
     setAwsImportProgressOpen(true);
     setAwaitingAwsImport(true);
     setStage(2);
@@ -642,10 +655,11 @@ export function usePrepaidWorkspace() {
   };
   const selectStage = (step: 1 | 2) => {
     if (actionInFlight.current) return;
-    if (step === 2 && awsBatchEnabled && !awsBatchReviewReady) {
-      if (canStartProcessing) startProcessing();
+    if (step === 2 && awsBatchEnabled && canStartProcessing) {
+      startProcessing();
       return;
     }
+    if (step === 2 && awsBatchEnabled && (!awsBatchReviewReady || awsBatchHasNewSources)) return;
     if (step === 2 && !awsBatchEnabled && session?.status === "failed") {
       void perform(async () => {
         await post("/workspace/prepare");
@@ -654,6 +668,7 @@ export function usePrepaidWorkspace() {
       return;
     }
     confirmLeave(() => {
+      stayedOnUpload.current = step === 1;
       setStage(step);
       setEditing(false);
       setChanges({});
@@ -694,6 +709,8 @@ export function usePrepaidWorkspace() {
     awaitingAwsImport,
     awsStatusError,
     awsBatchActive,
+    uploadsLocked,
+    awsBatchHasNewSources,
     awsBatchResetAllowed,
     awsBatchReviewReady,
     session,

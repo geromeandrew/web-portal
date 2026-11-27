@@ -330,6 +330,8 @@ export function formatMoney(value: unknown, places?: number) {
 export type PrepaidImportStage = "extracting" | "refreshing-reference" | "importing-layouts";
 
 export type PrepaidBatchStatus = {
+  canUpload?: boolean;
+  canRetryImport?: boolean;
   id: string;
   canReview: boolean;
   amaxeeReportAvailable?: boolean;

@@ -6,7 +6,7 @@ import { PrepaidProgressStrip } from "./PrepaidProgressStrip";
 
 export function PrepaidAwsJobProgress({
   phase, state, importProgress, submitting, queued, reconnecting, message,
-  expanded, setExpanded, onComplete,
+  expanded, setExpanded, onComplete, moreReportsAllowed,
 }: {
   phase: "import" | "eg" | "sg";
   state: "active" | "complete" | "failed";
@@ -18,6 +18,7 @@ export function PrepaidAwsJobProgress({
   expanded: boolean;
   setExpanded: (open: boolean) => void;
   onComplete: () => void;
+  moreReportsAllowed?: boolean;
 }) {
   const [viewError, setViewError] = useState(false);
   const minimize = useCallback(() => setExpanded(false), [setExpanded]);
@@ -28,7 +29,7 @@ export function PrepaidAwsJobProgress({
   const title = state === "active"
     ? importing ? importStatus[importProgress.stage][0] : freezeTitle
     : state === "complete"
-      ? importing ? "Import complete" : `${side} layout frozen`
+      ? importing ? (moreReportsAllowed ? "Partial import complete" : "Import complete") : `${side} layout frozen`
       : importing ? "Import failed" : `${side} freeze failed`;
   const freezeDetail = submitting ? "Submitting the freeze request."
     : queued ? "Waiting to start." : "Preparing and delivering the journal.";
@@ -36,9 +37,9 @@ export function PrepaidAwsJobProgress({
     ? reconnecting ? "Reconnecting to check progress."
       : importing ? importStatus[importProgress.stage][1] : freezeDetail
     : state === "complete"
-      ? importing ? "The EG and SG layouts are ready for review." : "The journal was delivered."
+      ? importing ? (moreReportsAllowed ? "You can add more reports." : "The EG and SG layouts are ready for review.") : "The journal was delivered."
       : message || "Processing needs attention.";
-  const action = state === "active" ? "View progress"
+  const action = state === "active" ? "View processing progress"
     : state === "failed" ? "View error" : importing ? "Open review" : "View journal";
 
   return (
